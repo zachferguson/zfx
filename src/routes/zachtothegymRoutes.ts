@@ -6,24 +6,25 @@ import {
     getArticles,
     getSingleArticleById,
     createNewArticle,
+    addDailyMetrics,
+    getDailyMetrics,
 } from "../controllers/zachtothegym/zachtothegymController";
-import { authenticateToken } from "../shared/auth/authMiddleware";
-import { login, register } from "../controllers/zachtothegym/authController";
+import { verifyToken } from "../middleware/authMiddleware";
 
 const router = Router();
 
-// blogs
+// Blogs
 router.get("/blogs", getBlogs);
 router.get("/blogs/:id", getSingleBlogById);
-router.post("/blogs", authenticateToken, createNewBlog);
+router.post("/blogs", verifyToken, createNewBlog);
 
-// articles
+// Articles
 router.get("/articles", getArticles);
 router.get("/articles/:id", getSingleArticleById);
-router.post("/articles", authenticateToken, createNewArticle);
+router.post("/articles", verifyToken, createNewArticle);
 
-// auth
-router.post("/auth/login", login);
-router.post("/auth/register", register);
+// Daily Metrics
+router.post("/daily-metrics", verifyToken, addDailyMetrics);
+router.get("/daily-metrics", getDailyMetrics);
 
 export default router;

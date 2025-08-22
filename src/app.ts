@@ -3,12 +3,21 @@ import dotenv from "dotenv";
 import cors from "cors";
 
 import zachtothegymRoutes from "./routes/zachtothegymRoutes";
+import printifyRoutes from "./routes/printifyRoutes";
+import authenticationRoutes from "./routes/authenticationRoutes";
+import paymentRoutes from "./routes/paymentRoutes";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-const allowedOrigins = ["https://zachtothegym.com", "https://zfxapi.com"];
+const allowedOrigins = [
+    "https://www.developerhorizon.com",
+    "https://developerhorizon.com",
+    "https://zachtothegym.com",
+    "https://zfxapi.com",
+    "http://localhost:5173",
+];
 
 // middleware
 app.use(
@@ -20,7 +29,10 @@ app.use(
 app.use(express.json());
 
 // routes
+app.use("/auth", authenticationRoutes);
 app.use("/zachtothegym", zachtothegymRoutes);
+app.use("/printify", printifyRoutes);
+app.use("/payments", paymentRoutes);
 //app.use("/pawtomatics", require("./routes/pawtomaticsRoutes").default);
 //app.use(
 //    "/zachariahferguson",

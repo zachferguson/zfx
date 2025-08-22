@@ -1,0 +1,28 @@
+export type DailyMetrics = {
+    date: string;
+    weight?: number;
+    bmi?: number;
+    body_fat?: number;
+    fat_free_weight?: number;
+    subcutaneous_fat?: number;
+    visceral_fat?: number;
+    body_water?: number;
+    skeletal_muscle?: number;
+    muscle_mass?: number;
+    bone_mass?: number;
+    protein?: number;
+    bmr?: number;
+    metabolic_age?: number;
+    total_steps?: number;
+    walking_steps?: number;
+    running_steps?: number;
+    exercise_minutes?: number;
+    calories_burned_walking?: number;
+    calories_burned_running?: number;
+    calories_burned_exercise?: number;
+    total_calories_burned?: number;
+    calories_consumed?: number;
+    protein_grams?: number;
+    fats_grams?: number;
+    carbs_grams?: number;
+};

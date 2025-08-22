@@ -3,41 +3,52 @@ import jwt from "jsonwebtoken";
 import db from "../db/connection";
 import { User, UserWithoutPassword } from "../types/user";
 
+/**
+ * Registers a new user in the authentication schema.
+ */
 export const registerUser = async (
     username: string,
     password: string,
-    email: string
+    email: string,
+    site: string
 ): Promise<UserWithoutPassword> => {
     const hashedPassword = await bcrypt.hash(
         password,
         parseInt(process.env.BCRYPT_SALT_ROUNDS || "10")
     );
+
     const query = `
-    INSERT INTO zachtothegym.users (username, password_hash, email)
-    VALUES ($1, $2, $3)
-    RETURNING id, username, email, role
+    INSERT INTO authentication.users (username, password_hash, email, site)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, username, email, role, site
     `;
+
     try {
-        return await db.one(query, [username, hashedPassword, email]);
+        return await db.one(query, [username, hashedPassword, email, site]);
     } catch (e: any) {
         if (e.code === "23505") {
-            throw new Error("Username already exists.");
+            throw new Error("Username or email already exists for this site.");
         }
         throw e;
     }
 };
 
+/**
+ * Authenticates a user.
+ */
 export const authenticateUser = async (
     username: string,
-    password: string
+    password: string,
+    site: string
 ): Promise<{ token: string; user: UserWithoutPassword } | null> => {
     const query = `
-    SELECT id, username, role, email, password_hash
-    FROM zachtothegym.users
-    WHERE username = $1
+    SELECT id, username, role, email, password_hash, site
+    FROM authentication.users
+    WHERE username = $1 AND site = $2
     `;
 
-    const user = await db.oneOrNone<User>(query, [username]);
+    const user = await db.oneOrNone<User>(query, [username, site]);
+
     if (
         user &&
         user.password_hash &&
@@ -48,10 +59,12 @@ export const authenticateUser = async (
                 id: user.id,
                 username: user.username,
                 role: user.role,
+                site: user.site,
             },
             process.env.JWT_SECRET!,
             { expiresIn: "1d" }
         );
+
         return {
             token,
             user: {
@@ -59,6 +72,7 @@ export const authenticateUser = async (
                 username: user.username,
                 email: user.email,
                 role: user.role,
+                site: user.site,
             },
         };
     }
