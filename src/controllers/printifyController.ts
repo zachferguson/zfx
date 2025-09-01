@@ -22,11 +22,13 @@ export const getProducts = async (
     try {
         const products = await printifyService.getProducts(id);
         res.status(200).json(products);
+        return;
     } catch (err: any) {
         console.error("Error in printifyController.getProducts", err);
         res.status(500).json({
             error: "Failed to fetch products from Printify",
         });
+        return;
     }
 };
 
@@ -35,7 +37,8 @@ export const getShippingOptions = async (req: Request, res: Response) => {
     const requestBody: ShippingRatesRequestBody = req.body;
 
     if (!id || !requestBody.address_to || !requestBody.line_items?.length) {
-        return res.status(400).json({ error: "Missing required fields." });
+        res.status(400).json({ error: "Missing required fields." });
+        return;
     }
 
     try {
@@ -43,12 +46,12 @@ export const getShippingOptions = async (req: Request, res: Response) => {
             id,
             requestBody
         );
-        return res.status(200).json(shippingOptions);
+        res.status(200).json(shippingOptions);
+        return;
     } catch (err: any) {
         console.error("Error fetching shipping rates:", err);
-        return res
-            .status(500)
-            .json({ error: "Failed to retrieve shipping options." });
+        res.status(500).json({ error: "Failed to retrieve shipping options." });
+        return;
     }
 };
 
@@ -64,9 +67,10 @@ export const submitOrder = async (req: Request, res: Response) => {
     } = req.body;
 
     if (!storeId || !order || !stripe_payment_id) {
-        return res.status(400).json({
+        res.status(400).json({
             error: "Missing storeId, order details, or stripe_payment_id.",
         });
+        return;
     }
 
     try {
@@ -109,14 +113,16 @@ export const submitOrder = async (req: Request, res: Response) => {
             order_number,
             JSON.stringify(order.line_items, null, 2)
         );
-        return res.status(201).json({
+        res.status(201).json({
             success: true,
             orderId: newOrder.id,
             printifyOrderId: printifyResponse.id,
         });
+        return;
     } catch (err: any) {
-        console.error("❌ Error processing order:", err);
-        return res.status(500).json({ error: "Failed to process order." });
+        console.error("Error processing order:", err);
+        res.status(500).json({ error: "Failed to process order." });
+        return;
     }
 };
 
@@ -124,7 +130,8 @@ export const getOrderStatus = async (req: Request, res: Response) => {
     const { orderId, email } = req.body;
 
     if (!orderId || !email) {
-        return res.status(400).json({ error: "Missing orderId or email." });
+        res.status(400).json({ error: "Missing orderId or email." });
+        return;
     }
 
     try {
@@ -133,7 +140,8 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             email as string
         );
         if (!order) {
-            return res.status(404).json({ error: "Order not found." });
+            res.status(404).json({ error: "Order not found." });
+            return;
         }
 
         const printifyOrder = await printifyService.getOrder(
@@ -141,7 +149,7 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             order.printify_order_id
         );
 
-        return res.json({
+        res.json({
             success: true,
             order_status: printifyOrder.status || "unknown",
             tracking_number: printifyOrder.shipments?.[0]?.number || null,
@@ -211,10 +219,10 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             // Printify Connect (if applicable)
             printify_connect: printifyOrder.printify_connect || null,
         });
+        return;
     } catch (err: any) {
-        console.error("❌ Error fetching order status:", err);
-        return res
-            .status(500)
-            .json({ error: "Failed to retrieve order status." });
+        console.error("Error fetching order status:", err);
+        res.status(500).json({ error: "Failed to retrieve order status." });
+        return;
     }
 };

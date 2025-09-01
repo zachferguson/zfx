@@ -30,7 +30,7 @@ export class PrintifyService {
             return response.data;
         } catch (err: any) {
             console.error(
-                "❌ Error fetching products from Printify:",
+                "Error fetching products from Printify:",
                 err?.response?.data || err.message
             );
             throw new Error(
@@ -94,7 +94,7 @@ export class PrintifyService {
             console.log("🚀 Order sent to production:", response.data);
         } catch (err: any) {
             console.error(
-                "❌ Error sending order to production:",
+                "Error sending order to production:",
                 err?.response?.data || err.message
             );
             throw new Error(
@@ -133,7 +133,7 @@ export class PrintifyService {
                 },
             };
 
-            console.log("🚀 Sending formatted order:", formattedOrderData);
+            console.log("Sending formatted order:", formattedOrderData);
 
             const response = await axios.post<PrintifyOrderResponse>(
                 `${PRINTIFY_BASE_URL}/shops/${storeId}/orders.json`,
@@ -147,19 +147,19 @@ export class PrintifyService {
             );
 
             console.log(
-                "✅ Order successfully submitted to Printify:",
+                "Order successfully submitted to Printify:",
                 response.data
             );
 
             return response.data;
         } catch (err: any) {
             console.error(
-                "❌ Error submitting order to Printify:",
+                "Error submitting order to Printify:",
                 err?.response?.data || err.message
             );
             throw new Error(
                 `Failed to submit order to Printify: ${
-                    err.response?.data?.message || "Unknown error"
+                    err?.response?.data?.message || "Unknown error"
                 }`
             );
         }
@@ -177,7 +177,7 @@ export class PrintifyService {
             );
             return response.data;
         } catch (err: any) {
-            console.error("❌ Error fetching order from Printify:", err);
+            console.error("Error fetching order from Printify:", err);
             throw new Error("Failed to fetch order details.");
         }
     }
