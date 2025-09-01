@@ -8,7 +8,7 @@ import {
     createNewArticle,
     addDailyMetrics,
     getDailyMetrics,
-} from "../controllers/zachtothegym/zachtothegymController";
+} from "../controllers/zachtothegymController";
 import { verifyToken } from "../middleware/authMiddleware";
 
 const router = Router();
