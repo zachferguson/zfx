@@ -27,28 +27,30 @@ describe("paymentRoutes", () => {
         vi.clearAllMocks();
     });
 
-    it("POST /payments/create-payment-intent -> 400 when any required field is missing", async () => {
-        // missing storeId
-        let res = await request(app)
+    it("POST /payments/create-payment-intent -> 400 when storeId is missing", async () => {
+        const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ amount: 1000, currency: "usd" });
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Missing required fields");
+        expect(res.body.error).toMatch(/storeId/i);
+        expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
+    });
 
-        // missing amount
-        res = await request(app)
+    it("POST /payments/create-payment-intent -> 400 when amount is missing", async () => {
+        const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", currency: "usd" });
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Missing required fields");
+        expect(res.body.error).toMatch(/amount/i);
+        expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
+    });
 
-        // missing currency
-        res = await request(app)
+    it("POST /payments/create-payment-intent -> 400 when currency is missing", async () => {
+        const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", amount: 1000 });
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Missing required fields");
-
+        expect(res.body.error).toMatch(/currency/i);
         expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
