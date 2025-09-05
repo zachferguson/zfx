@@ -7,10 +7,10 @@ vi.mock("../services/stripeService", () => ({
     createPaymentIntent: vi.fn(),
 }));
 
-import { createPaymentIntent as _createPaymentIntent } from "../services/stripeService";
+import { createPaymentIntent } from "../services/stripeService";
 import paymentRouter from "./paymentController";
 
-const createPaymentIntent = vi.mocked(_createPaymentIntent);
+const mockedCreatePaymentIntent = vi.mocked(createPaymentIntent);
 
 function makeApp() {
     const app = express();
@@ -34,11 +34,11 @@ describe("paymentController", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.error).toBe("Missing storeId");
-        expect(createPaymentIntent).not.toHaveBeenCalled();
+        expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
     it("POST /payments/create-payment-intent -> 200 returns clientSecret", async () => {
-        createPaymentIntent.mockResolvedValue("secret_123");
+        mockedCreatePaymentIntent.mockResolvedValue("secret_123");
 
         const res = await request(app)
             .post("/payments/create-payment-intent")
@@ -46,7 +46,7 @@ describe("paymentController", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.clientSecret).toBe("secret_123");
-        expect(createPaymentIntent).toHaveBeenCalledWith(
+        expect(mockedCreatePaymentIntent).toHaveBeenCalledWith(
             "store-1",
             1000,
             "usd"
@@ -54,7 +54,7 @@ describe("paymentController", () => {
     });
 
     it("POST /payments/create-payment-intent -> 500 when service throws", async () => {
-        createPaymentIntent.mockRejectedValue(new Error("stripe down"));
+        mockedCreatePaymentIntent.mockRejectedValue(new Error("stripe down"));
 
         const res = await request(app)
             .post("/payments/create-payment-intent")

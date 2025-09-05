@@ -7,10 +7,10 @@ vi.mock("../services/stripeService", () => ({
     createPaymentIntent: vi.fn(),
 }));
 
-import { createPaymentIntent as _createPaymentIntent } from "../services/stripeService";
+import { createPaymentIntent } from "../services/stripeService";
 import paymentRoutes from "./paymentRoutes";
 
-const createPaymentIntent = vi.mocked(_createPaymentIntent);
+const mockedCreatePaymentIntent = vi.mocked(createPaymentIntent);
 
 function makeApp() {
     const app = express();
@@ -49,11 +49,11 @@ describe("paymentRoutes", () => {
         expect(res.status).toBe(400);
         expect(res.body.error).toBe("Missing required fields");
 
-        expect(createPaymentIntent).not.toHaveBeenCalled();
+        expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
     it("POST /payments/create-payment-intent -> 200 returns clientSecret", async () => {
-        createPaymentIntent.mockResolvedValue("pi_secret_123");
+        mockedCreatePaymentIntent.mockResolvedValue("pi_secret_123");
 
         const body = { storeId: "store-1", amount: 2500, currency: "usd" };
         const res = await request(app)
@@ -62,7 +62,7 @@ describe("paymentRoutes", () => {
 
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ clientSecret: "pi_secret_123" });
-        expect(createPaymentIntent).toHaveBeenCalledWith(
+        expect(mockedCreatePaymentIntent).toHaveBeenCalledWith(
             "store-1",
             2500,
             "usd"
@@ -70,7 +70,7 @@ describe("paymentRoutes", () => {
     });
 
     it("POST /payments/create-payment-intent -> 500 when service throws", async () => {
-        createPaymentIntent.mockRejectedValue(new Error("stripe-down"));
+        mockedCreatePaymentIntent.mockRejectedValue(new Error("stripe-down"));
 
         const res = await request(app)
             .post("/payments/create-payment-intent")
