@@ -31,14 +31,14 @@ vi.mock("../controllers/zachtothegymController", () => {
     };
 });
 
-vi.mock("../middleware/authMiddleware", () => ({
+vi.mock("../middleware/authenticationMiddleware", () => ({
     verifyToken: vi.fn((_req, _res, next) => next()),
 }));
 
 // Import AFTER mocks so router gets the mocked deps
 import router from "./zachtothegymRoutes";
 import * as Controller from "../controllers/zachtothegymController";
-import { verifyToken } from "../middleware/authMiddleware";
+import { verifyToken } from "../middleware/authenticationMiddleware";
 
 function makeApp() {
     const app = express();

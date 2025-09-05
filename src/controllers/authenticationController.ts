@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import { registerUser, authenticateUser } from "../services/authService";
+import {
+    registerUser,
+    authenticateUser,
+} from "../services/authenticationService";
 import jwt from "jsonwebtoken";
 
 /**

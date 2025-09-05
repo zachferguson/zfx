@@ -9,7 +9,7 @@ import {
     addDailyMetrics,
     getDailyMetrics,
 } from "../controllers/zachtothegymController";
-import { verifyToken } from "../middleware/authMiddleware";
+import { verifyToken } from "../middleware/authenticationMiddleware";
 
 const router = Router();
 
