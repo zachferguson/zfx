@@ -8,14 +8,14 @@ vi.mock("../services/stripeService", () => ({
 }));
 
 import { createPaymentIntent } from "../services/stripeService";
-import paymentRouter from "./paymentController";
+import paymentRoutes from "../routes/paymentRoutes";
 
 const mockedCreatePaymentIntent = vi.mocked(createPaymentIntent);
 
 function makeApp() {
     const app = express();
     app.use(express.json());
-    app.use("/payments", paymentRouter);
+    app.use("/payments", paymentRoutes);
     return app;
 }
 

@@ -32,7 +32,7 @@ describe("paymentRoutes", () => {
             .post("/payments/create-payment-intent")
             .send({ amount: 1000, currency: "usd" });
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/storeId/i);
+        expect(res.body.error).toBe("Missing storeId");
         expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
@@ -41,7 +41,7 @@ describe("paymentRoutes", () => {
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", currency: "usd" });
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/amount/i);
+        expect(res.body.error).toBe("Missing amount");
         expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
@@ -50,7 +50,7 @@ describe("paymentRoutes", () => {
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", amount: 1000 });
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/currency/i);
+        expect(res.body.error).toBe("Missing currency");
         expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
