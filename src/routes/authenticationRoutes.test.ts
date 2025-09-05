@@ -27,7 +27,7 @@ vi.mock("../controllers/authenticationController", () => ({
     register: h.ctrl.register,
 }));
 
-vi.mock("../middleware/authMiddleware", () => ({
+vi.mock("../middleware/authenticationMiddleware", () => ({
     verifyToken: h.mw.verifyToken,
 }));
 
