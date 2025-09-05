@@ -1,5 +1,8 @@
 import express, { Request, Response } from "express";
+import { body, validationResult } from "express-validator";
 import { createPaymentIntent } from "../services/stripeService";
+
+const router = express.Router();
 
 interface CreatePaymentIntentRequest {
     storeId: string;
@@ -7,22 +10,22 @@ interface CreatePaymentIntentRequest {
     currency: string;
 }
 
-const router = express.Router();
-
 router.post(
     "/create-payment-intent",
-    async (
-        req: Request<{}, {}, CreatePaymentIntentRequest>,
-        res: Response
-    ): Promise<void> => {
+    [
+        body("storeId").notEmpty().withMessage("Missing storeId"),
+        body("amount").notEmpty().withMessage("Missing amount"),
+        body("currency").notEmpty().withMessage("Missing currency"),
+    ],
+    async (req: Request, res: Response) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ error: errors.array()[0].msg });
+        }
+
         try {
-            const { storeId, amount, currency } = req.body;
-
-            if (!storeId || !amount || !currency) {
-                res.status(400).json({ error: "Missing required fields" });
-                return;
-            }
-
+            const { storeId, amount, currency } =
+                req.body as CreatePaymentIntentRequest;
             const clientSecret = await createPaymentIntent(
                 storeId,
                 amount,
