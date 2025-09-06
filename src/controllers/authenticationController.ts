@@ -92,7 +92,7 @@ export const login = async (req: Request, res: Response) => {
             return;
         }
         const { token, user } = result;
-        res.json({ token, user });
+        res.status(200).json({ token, user });
         return;
     } catch (e) {
         res.status(500).json({ error: AUTHENTICATION_ERRORS.LOGIN_FAILED });
@@ -123,7 +123,8 @@ export const verifyToken = (
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-        (req as any).user = decoded;
+        // Attach user info to req.user with proper type
+        req.user = decoded as import("../types/user").UserWithoutPassword;
         next();
     } catch (err) {
         res.status(403).json({ error: AUTHENTICATION_ERRORS.INVALID_TOKEN });

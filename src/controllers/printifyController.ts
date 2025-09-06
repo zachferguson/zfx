@@ -221,7 +221,7 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             order.printify_order_id
         );
 
-        res.json({
+        res.status(200).json({
             success: true,
             order_status: printifyOrder.status || "unknown",
             tracking_number: printifyOrder.shipments?.[0]?.number || null,

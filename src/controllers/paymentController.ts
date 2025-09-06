@@ -40,7 +40,7 @@ export const handleCreatePaymentIntent = async (
             amount,
             currency
         );
-        res.json({ clientSecret });
+        res.status(200).json({ clientSecret });
         return;
     } catch (error) {
         console.error("Payment intent creation failed:", error);

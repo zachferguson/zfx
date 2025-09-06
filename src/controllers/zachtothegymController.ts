@@ -25,7 +25,7 @@ import { body, param, query, validationResult } from "express-validator";
 export const getBlogs = async (req: Request, res: Response) => {
     try {
         const blogs = await getAllBlogs();
-        res.json(blogs);
+        res.status(200).json(blogs);
         return;
     } catch (e) {
         res.status(500).json({ error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOGS });
@@ -60,7 +60,7 @@ export const getSingleBlogById = async (req: Request, res: Response) => {
             res.status(404).json({ error: ZACHTOTHEGYM_ERRORS.BLOG_NOT_FOUND });
             return;
         }
-        res.json(blog);
+        res.status(200).json(blog);
         return;
     } catch (e) {
         res.status(500).json({ error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOG });
@@ -114,7 +114,7 @@ export const createNewBlog = async (req: Request, res: Response) => {
 export const getArticles = async (req: Request, res: Response) => {
     try {
         const articles = await getAllArticles();
-        res.json(articles);
+        res.status(200).json(articles);
         return;
     } catch (e) {
         res.status(500).json({
@@ -153,7 +153,7 @@ export const getSingleArticleById = async (req: Request, res: Response) => {
             });
             return;
         }
-        res.json(article);
+        res.status(200).json(article);
         return;
     } catch (e) {
         res.status(500).json({
@@ -270,7 +270,7 @@ export const getDailyMetrics = async (req: Request, res: Response) => {
     const { start, end } = req.query as { start: string; end: string };
     try {
         const results = await getMetricsInRange(start, end);
-        res.json(results);
+        res.status(200).json(results);
         return;
     } catch (err) {
         console.error("Error fetching daily metrics:", err);
