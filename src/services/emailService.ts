@@ -198,9 +198,7 @@ Order Total: ${totalFormatted}
 
       <p style="font-size:12px;color:#666;margin-top:16px">
         If the button doesn't work, copy &amp; paste this URL into your browser:<br/>
-        <span style="word-break:break-all">${url
-            .toString()
-            .replace(/&/g, "&amp;")}</span>
+        <span style="word-break:break-all">${escapeHtml(url.toString())}</span>
       </p>
     `,
     };
