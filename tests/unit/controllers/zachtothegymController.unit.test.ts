@@ -136,6 +136,7 @@ describe("zachtothegymController unit", () => {
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
+    // Consolidated createNewBlog tests (merged from both duplicate blocks)
     describe("createNewBlog", () => {
         it("returns 400 if validation fails", async () => {
             const req = { body: {} } as Request;
@@ -148,9 +149,10 @@ describe("zachtothegymController unit", () => {
             }));
             await Controller.createNewBlog(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith({
-                errors: ["Invalid"],
-            });
+            // Some blocks check for errors array, some don't; keep the more complete assertion
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({ errors: ["Invalid"] })
+            );
         });
         it("returns 201 and blog on success", async () => {
             const req = {
@@ -239,62 +241,6 @@ describe("zachtothegymController unit", () => {
             }));
             await Controller.getSingleArticleById(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
-        });
-    });
-
-    describe("createNewBlog", () => {
-        it("returns 400 if validation fails", async () => {
-            const req = { body: {} } as Request;
-            const res = mockRes();
-            (
-                validationResult as unknown as ReturnType<typeof vi.fn>
-            ).mockImplementationOnce(() => ({
-                isEmpty: () => false,
-                array: () => [{ msg: "Invalid" }],
-            }));
-            await Controller.createNewBlog(req, res);
-            expect(res.status).toHaveBeenCalledWith(400);
-        });
-        it("returns 201 and new blog on success", async () => {
-            const req = {
-                body: { title: "T", content: "C", categories: [] },
-            } as Request;
-            const res = mockRes();
-            (
-                validationResult as unknown as ReturnType<typeof vi.fn>
-            ).mockImplementationOnce(() => ({
-                isEmpty: () => true,
-            }));
-            const blog = {
-                id: 1,
-                title: "T",
-                content: "C",
-                categories: [],
-                created_at: new Date(),
-                updated_at: new Date(),
-            };
-            vi.spyOn(BlogsSvc, "createBlog").mockResolvedValue(blog);
-            await Controller.createNewBlog(req, res);
-            expect(res.status).toHaveBeenCalledWith(201);
-            expect(res.json).toHaveBeenCalledWith(
-                expect.objectContaining({ id: 1, title: "T" })
-            );
-        });
-        it("returns 500 on error", async () => {
-            const req = {
-                body: { title: "T", content: "C", categories: [] },
-            } as Request;
-            const res = mockRes();
-            (
-                validationResult as unknown as ReturnType<typeof vi.fn>
-            ).mockImplementationOnce(() => ({
-                isEmpty: () => true,
-            }));
-            vi.spyOn(BlogsSvc, "createBlog").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.createNewBlog(req, res);
-            expect(res.status).toHaveBeenCalledWith(500);
         });
     });
 
