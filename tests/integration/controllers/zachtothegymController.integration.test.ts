@@ -25,7 +25,7 @@ import {
     validateGetDailyMetrics,
 } from "../../../src/validators/zachtothegymValidators";
 
-function buildApp() {
+function makeApp() {
     const app = express();
     app.use(express.json());
 
@@ -51,7 +51,7 @@ describe("zachtothegym controller integration", () => {
     let app: express.Express;
 
     beforeEach(() => {
-        app = buildApp();
+        app = makeApp();
         vi.restoreAllMocks();
     });
 

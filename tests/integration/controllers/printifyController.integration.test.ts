@@ -53,8 +53,8 @@ import {
 } from "../../../src/controllers/printifyController";
 
 function makeApp() {
-    const app = require("express")();
-    app.use(require("express").json());
+    const app = express();
+    app.use(express.json());
     app.get("/products/:id?", validateGetProducts, getProducts);
     app.post("/shipping/:id?", validateGetShippingOptions, getShippingOptions);
     app.post("/orders", validateSubmitOrder, submitOrder);

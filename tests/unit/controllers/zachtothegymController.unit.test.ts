@@ -240,6 +240,9 @@ describe("zachtothegymController unit", () => {
             await Controller.getSingleArticleById(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
         });
+    });
+
+    describe("createNewBlog", () => {
         it("returns 400 if validation fails", async () => {
             const req = { body: {} } as Request;
             const res = mockRes();
@@ -293,6 +296,9 @@ describe("zachtothegymController unit", () => {
             await Controller.createNewBlog(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
+    });
+
+    describe("createNewArticle", () => {
         it("returns 400 if validation fails", async () => {
             const req = { body: {} } as Request;
             const res = mockRes();
