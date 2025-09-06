@@ -33,6 +33,11 @@ export const getBlogs = async (req: Request, res: Response) => {
     }
 };
 
+export const validateGetSingleBlogById = [
+    param("id")
+        .isInt({ gt: 0 })
+        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_BLOG_ID),
+];
 /**
  * Gets a single blog by ID.
  *
@@ -42,12 +47,6 @@ export const getBlogs = async (req: Request, res: Response) => {
  * @returns Express route handler (no explicit return value; sends response via res)
  * @note On success, responds with 200 and a blog object. On error, responds with 400 (validation), 404 (not found), or 500 (server error) and an error message.
  */
-export const validateGetSingleBlogById = [
-    param("id")
-        .isInt({ gt: 0 })
-        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_BLOG_ID),
-];
-
 export const getSingleBlogById = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -69,6 +68,14 @@ export const getSingleBlogById = async (req: Request, res: Response) => {
     }
 };
 
+export const validateCreateNewBlog = [
+    body("title")
+        .notEmpty()
+        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
+    body("content")
+        .notEmpty()
+        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
+];
 /**
  * Creates a new blog.
  *
@@ -78,15 +85,6 @@ export const getSingleBlogById = async (req: Request, res: Response) => {
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
-export const validateCreateNewBlog = [
-    body("title")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
-    body("content")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
-];
-
 export const createNewBlog = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -126,6 +124,11 @@ export const getArticles = async (req: Request, res: Response) => {
     }
 };
 
+export const validateGetSingleArticleById = [
+    param("id")
+        .isInt({ gt: 0 })
+        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_ARTICLE_ID),
+];
 /**
  * Gets a single article by ID.
  *
@@ -135,12 +138,6 @@ export const getArticles = async (req: Request, res: Response) => {
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
-export const validateGetSingleArticleById = [
-    param("id")
-        .isInt({ gt: 0 })
-        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_ARTICLE_ID),
-];
-
 export const getSingleArticleById = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -166,15 +163,6 @@ export const getSingleArticleById = async (req: Request, res: Response) => {
     }
 };
 
-/**
- * Creates a new article.
- *
- * @route POST /articles
- * @param {Request} req - Express request object, expects title, summary, content, categories in body
- * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
- * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
- */
 export const validateCreateNewArticle = [
     body("title")
         .notEmpty()
@@ -189,7 +177,15 @@ export const validateCreateNewArticle = [
         .notEmpty()
         .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_ARTICLE_FIELDS),
 ];
-
+/**
+ * Creates a new article.
+ *
+ * @route POST /articles
+ * @param {Request} req - Express request object, expects title, summary, content, categories in body
+ * @param {Response} res - Express response object
+ * @returns Express route handler (no explicit return type; see note)
+ * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
+ */
 export const createNewArticle = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -214,6 +210,11 @@ export const createNewArticle = async (req: Request, res: Response) => {
     }
 };
 
+export const validateAddDailyMetrics = [
+    body("date")
+        .notEmpty()
+        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_DATE),
+];
 /**
  * Adds daily metrics.
  *
@@ -223,12 +224,6 @@ export const createNewArticle = async (req: Request, res: Response) => {
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
-export const validateAddDailyMetrics = [
-    body("date")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_DATE),
-];
-
 export const addDailyMetrics = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -249,6 +244,14 @@ export const addDailyMetrics = async (req: Request, res: Response) => {
     }
 };
 
+export const validateGetDailyMetrics = [
+    query("start")
+        .notEmpty()
+        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
+    query("end")
+        .notEmpty()
+        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
+];
 /**
  * Gets daily metrics in a date range.
  *
@@ -258,15 +261,6 @@ export const addDailyMetrics = async (req: Request, res: Response) => {
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
-export const validateGetDailyMetrics = [
-    query("start")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
-    query("end")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
-];
-
 export const getDailyMetrics = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

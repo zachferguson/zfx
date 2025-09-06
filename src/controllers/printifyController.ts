@@ -84,6 +84,15 @@ export const getShippingOptions = async (req: Request, res: Response) => {
     }
 };
 
+export const validateSubmitOrder = [
+    body("storeId")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+    body("order").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+    body("stripe_payment_id")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+];
 /**
  * Submits a new order to Printify and saves it in the database.
  *
@@ -159,6 +168,7 @@ export const submitOrder = async (req: Request, res: Response) => {
                 currency: order.currency || "USD",
             }
         );
+
         res.status(201).json({
             success: true,
             orderId: newOrder.id,
@@ -172,16 +182,14 @@ export const submitOrder = async (req: Request, res: Response) => {
     }
 };
 
-export const validateSubmitOrder = [
-    body("storeId")
+export const validateGetOrderStatus = [
+    body("orderId")
         .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
-    body("order").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
-    body("stripe_payment_id")
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
+    body("email")
         .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
 ];
-
 /**
  * Gets the status and details of a Printify order for a customer.
  *
@@ -287,12 +295,3 @@ export const getOrderStatus = async (req: Request, res: Response) => {
         return;
     }
 };
-
-export const validateGetOrderStatus = [
-    body("orderId")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
-    body("email")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
-];

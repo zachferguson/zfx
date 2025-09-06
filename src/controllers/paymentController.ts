@@ -4,9 +4,6 @@ import { CreatePaymentIntentRequest } from "../types/createPaymentIntentRequest"
 import { PAYMENT_ERRORS } from "../config/paymentErrors";
 import { body, validationResult } from "express-validator";
 
-/**
- * Validation chain for payment intent creation.
- */
 export const validateCreatePaymentIntent = [
     body("storeId").notEmpty().withMessage(PAYMENT_ERRORS.MISSING_FIELDS),
     body("amount")
@@ -16,7 +13,6 @@ export const validateCreatePaymentIntent = [
         .withMessage(PAYMENT_ERRORS.INVALID_AMOUNT),
     body("currency").notEmpty().withMessage(PAYMENT_ERRORS.MISSING_FIELDS),
 ];
-
 /**
  * Creates a Stripe payment intent for the given store, amount, and currency.
  *

@@ -7,15 +7,6 @@ import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
 import jwt from "jsonwebtoken";
 import { body, validationResult } from "express-validator";
 
-/**
- * Handles user registration.
- *
- * @route POST /register
- * @param {Request} req - Express request object, expects { username, password, email, site } in body
- * @param {Response} res - Express response object
- * @returns {Promise<void>} Sends response via res object.
- * @note All responses are sent via the res object; no value is returned. On success, responds with 201 and { message, user }. On error, responds with 400 (validation or duplicate), or 500 (server error) and an error message.
- */
 export const validateRegister = [
     body("username")
         .notEmpty()
@@ -30,7 +21,15 @@ export const validateRegister = [
         .notEmpty()
         .withMessage(AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS),
 ];
-
+/**
+ * Handles user registration.
+ *
+ * @route POST /register
+ * @param {Request} req - Express request object, expects { username, password, email, site } in body
+ * @param {Response} res - Express response object
+ * @returns {Promise<void>} Sends response via res object.
+ * @note All responses are sent via the res object; no value is returned. On success, responds with 201 and { message, user }. On error, responds with 400 (validation or duplicate), or 500 (server error) and an error message.
+ */
 export const register = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -57,15 +56,6 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-/**
- * Handles user login.
- *
- * @route POST /login
- * @param {Request} req - Express request object, expects { username, password, site } in body
- * @param {Response} res - Express response object
- * @returns {Promise<void>} Sends response via res object.
- * @note All responses are sent via the res object; no value is returned. On success, responds with 200 and { token, user }. On error, responds with 400 (validation), 401 (invalid credentials), or 500 (server error) and an error message.
- */
 export const validateLogin = [
     body("username")
         .notEmpty()
@@ -77,7 +67,15 @@ export const validateLogin = [
         .notEmpty()
         .withMessage(AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS),
 ];
-
+/**
+ * Handles user login.
+ *
+ * @route POST /login
+ * @param {Request} req - Express request object, expects { username, password, site } in body
+ * @param {Response} res - Express response object
+ * @returns {Promise<void>} Sends response via res object.
+ * @note All responses are sent via the res object; no value is returned. On success, responds with 200 and { token, user }. On error, responds with 400 (validation), 401 (invalid credentials), or 500 (server error) and an error message.
+ */
 export const login = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
