@@ -180,7 +180,7 @@ it("POST /orders -> 201 happy path", async () => {
         order: {
             total_price: 2000,
             currency: "USD",
-            shipping_method: "STANDARD",
+            shipping_method: 1, // <-- number, not "STANDARD"
             shipping_cost: 500,
             customer: {
                 email: "a@b.com",
@@ -200,12 +200,14 @@ it("POST /orders -> 201 happy path", async () => {
                     variant_id: 22,
                     quantity: 1,
                     print_provider_id: 333,
+                    cost: 1200, // optional, but matches your interface
                     metadata: {
                         price: 2000,
                         title: "Shirt",
                         variant_label: "L",
                         sku: "SKU1",
                     },
+                    status: "in_production", // optional; allowed by your interface
                 },
             ],
         },
@@ -227,7 +229,7 @@ it("POST /orders -> 201 happy path", async () => {
             email: "a@b.com",
             totalPrice: 2000,
             currency: "USD",
-            shippingMethod: "STANDARD",
+            shippingMethod: 1,
             shippingCost: 500,
             shippingAddress: expect.any(Object),
             items: expect.any(Array),
@@ -249,7 +251,28 @@ it("POST /orders -> 201 happy path", async () => {
         "store-1",
         "a@b.com",
         UUID,
-        expect.any(String) // stringified line_items
+        expect.objectContaining({
+            address: expect.objectContaining({
+                first_name: "Ada",
+                last_name: "Lovelace",
+                address1: "1 Main",
+                city: "NY",
+                region: "NY",
+                zip: "10001",
+                country: "US",
+            }),
+            items: expect.arrayContaining([
+                expect.objectContaining({
+                    title: "Shirt",
+                    variant_label: "L",
+                    quantity: 1,
+                    price: 2000,
+                }),
+            ]),
+            shippingMethod: 1,
+            totalPrice: 2000,
+            currency: "USD",
+        })
     );
 });
 

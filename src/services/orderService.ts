@@ -44,7 +44,7 @@ export class OrderService {
                 order.orderStatus,
             ]);
         } catch (err) {
-            console.error("❌ Error saving order:", err);
+            console.error("Error saving order:", err);
             throw new Error("Failed to save order.");
         }
     }
@@ -61,7 +61,7 @@ export class OrderService {
             const { id } = await db.one(query, [printifyOrderId, orderNumber]);
             return id;
         } catch (err) {
-            console.error("❌ Error updating Printify order ID:", err);
+            console.error("Error updating Printify order ID:", err);
             throw new Error("Failed to update Printify order ID.");
         }
     }
@@ -76,7 +76,7 @@ export class OrderService {
         try {
             return await db.oneOrNone(query, [orderId, email]);
         } catch (err) {
-            console.error("❌ Error retrieving order:", err);
+            console.error("Error retrieving order:", err);
             throw new Error("Failed to retrieve order.");
         }
     }

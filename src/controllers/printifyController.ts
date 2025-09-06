@@ -111,7 +111,19 @@ export const submitOrder = async (req: Request, res: Response) => {
             storeId,
             order.customer.email,
             order_number,
-            JSON.stringify(order.line_items, null, 2)
+            {
+                address: order.customer.address,
+                items: order.line_items.map((li) => ({
+                    title: li.metadata.title,
+                    variant_label: li.metadata.variant_label,
+                    quantity: li.quantity,
+                    // metadata.price = price the customer paid (your interface comment says so)
+                    price: li.metadata.price,
+                })),
+                shippingMethod: order.shipping_method,
+                totalPrice: order.total_price,
+                currency: order.currency || "USD",
+            }
         );
         res.status(201).json({
             success: true,
