@@ -16,10 +16,8 @@ const orderService = new OrderService();
  * @route GET /printify/:id/products
  * @param {Request} req - Express request object, expects store id in params
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
- * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
- *
- * @remarks
+ * @returns Express route handler (no explicit return value; sends response via res)
+ * @note On success, responds with 200 and an array of products. On error, responds with 400 (validation) or 500 (server error) and an error message.
  */
 export const getProducts = async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -52,10 +50,8 @@ export const validateGetProducts = [
  * @route POST /printify/:id/shipping
  * @param {Request} req - Express request object, expects store id in params and ShippingRatesRequestBody in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
- * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
- *
- * @remarks
+ * @returns Express route handler (no explicit return value; sends response via res)
+ * @note On success, responds with 200 and shipping options. On error, responds with 400 (validation) or 500 (server error) and an error message.
  */
 export const getShippingOptions = async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -100,8 +96,6 @@ export const validateGetShippingOptions = [
  * @param {Response} res - Express response object
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
- *
- * @remarks
  */
 export const submitOrder = async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -201,8 +195,6 @@ export const validateSubmitOrder = [
  * @param {Response} res - Express response object
  * @returns Express route handler (no explicit return type; see note)
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
- *
- * @remarks
  */
 export const getOrderStatus = async (req: Request, res: Response) => {
     const errors = validationResult(req);

@@ -10,9 +10,8 @@ import { body, validationResult } from "express-validator";
  * @route POST /payment-intent
  * @param {Request} req - Express request object, expects { storeId, amount, currency } in body
  * @param {Response} res - Express response object
- * @returns {Promise<void>}
- *
- * @remarks
+ * @returns Express route handler (no explicit return value; sends response via res)
+ * @note In TypeScript, Express handlers should omit the return type because they do not return a value; all responses are sent via the res object. This is an intentional exception to the project's explicit return type rule.
  */
 
 /**
@@ -34,7 +33,8 @@ export const validateCreatePaymentIntent = [
  * @route POST /payment-intent
  * @param {Request} req - Express request object, expects { storeId, amount, currency } in body
  * @param {Response} res - Express response object
- * @returns {Promise<void>}
+ * @returns Express route handler (no explicit return value; sends response via res)
+ * @note In TypeScript, Express handlers should omit the return type because they do not return a value; all responses are sent via the res object. This is an intentional exception to the project's explicit return type rule.
  */
 export const handleCreatePaymentIntent = async (
     req: Request<any, any, CreatePaymentIntentRequest>,
