@@ -13,8 +13,8 @@ import { body, validationResult } from "express-validator";
  * @route POST /register
  * @param {Request} req - Express request object, expects { username, password, email, site } in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
- * @note On success, responds with 201 and { message, user }. On error, responds with 400 (validation or duplicate), or 500 (server error) and an error message.
+ * @returns {Promise<void>} Sends response via res object.
+ * @note All responses are sent via the res object; no value is returned. On success, responds with 201 and { message, user }. On error, responds with 400 (validation or duplicate), or 500 (server error) and an error message.
  */
 export const validateRegister = [
     body("username")
@@ -63,8 +63,8 @@ export const register = async (req: Request, res: Response) => {
  * @route POST /login
  * @param {Request} req - Express request object, expects { username, password, site } in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
- * @note On success, responds with 200 and { token, user }. On error, responds with 400 (validation), 401 (invalid credentials), or 500 (server error) and an error message.
+ * @returns {Promise<void>} Sends response via res object.
+ * @note All responses are sent via the res object; no value is returned. On success, responds with 200 and { token, user }. On error, responds with 400 (validation), 401 (invalid credentials), or 500 (server error) and an error message.
  */
 export const validateLogin = [
     body("username")
