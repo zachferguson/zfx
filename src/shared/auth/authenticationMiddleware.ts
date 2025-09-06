@@ -1,13 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { UserWithoutPassword } from "../../types/user";
 
 const SECRET_KEY = process.env.JWT_SECRET || "default_secret";
 
-interface AuthenticatedRequest extends Request {
-    user?: { id: number; username: string };
-}
 export const authenticateToken = (
-    req: AuthenticatedRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ) => {
@@ -21,10 +19,7 @@ export const authenticateToken = (
         return;
     }
     try {
-        const decoded = jwt.verify(token, SECRET_KEY) as {
-            id: number;
-            username: string;
-        };
+        const decoded = jwt.verify(token, SECRET_KEY) as UserWithoutPassword;
         req.user = decoded;
         next();
     } catch (e) {
