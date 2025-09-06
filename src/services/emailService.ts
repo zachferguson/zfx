@@ -13,7 +13,7 @@ export const sendOrderConfirmation = async (
     const emailConfig = STORE_EMAILS[storeId];
 
     if (!emailConfig || !emailConfig.user || !emailConfig.pass) {
-        console.error(`❌ No email configuration found for store: ${storeId}`);
+        console.error(`No email configuration found for store: ${storeId}`);
         return { success: false, error: "Email configuration missing." };
     }
 
@@ -27,14 +27,26 @@ export const sendOrderConfirmation = async (
         },
     });
 
+    const url = new URL("/order-status", emailConfig.frontendUrl);
+    url.search = new URLSearchParams({
+        orderId: orderId,
+        email: toEmail,
+    }).toString();
+
     const mailOptions = {
         from: `"${emailConfig.storeName} Orders" <${emailConfig.user}>`,
         to: toEmail,
         subject: `${emailConfig.storeName} Order Confirmation - ${orderId}`,
-        text: `Thank you for your order! Your order ID is ${orderId}.\n\nOrder Details:\n${orderDetails}`,
+        text: `Thank you for your order!\n\nYour order ID is ${orderId}.`,
         html: `<h2>Thank you for your order!</h2>
            <p>Your order ID is <strong>${orderId}</strong>.</p>
-           <p><a href="${emailConfig.frontendUrl}/order-status?orderId=${orderId}&email=${toEmail}">Click here</a> to view and track your order.</p>`,
+           <p><a href="${url.toString()}">Click here</a> to view and track your order.</p>
+            <p style="font-size:12px;color:#666;margin-top:16px">
+            If the button doesn't work, copy & paste this URL into your browser:<br>
+            <span style="word-break:break-all">${url
+                .toString()
+                .replace(/&/g, "&amp;")}</span>
+            </p>`,
     };
     // html: `<h2>Thank you for your order!</h2>
     // <p>Your order ID is <strong>${orderId}</strong>.</p>
@@ -46,7 +58,7 @@ export const sendOrderConfirmation = async (
         const info = await transporter.sendMail(mailOptions);
         return { success: true, messageId: info.messageId };
     } catch (error: unknown) {
-        console.error("❌ Error sending email:", error);
+        console.error("Error sending email:", error);
 
         let errorMessage = "An unknown error occurred.";
 
