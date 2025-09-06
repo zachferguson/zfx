@@ -7,7 +7,7 @@ export const AUTHENTICATION_ERRORS = {
     REGISTER_FAILED: "Error registering user.",
     MISSING_LOGIN_FIELDS: "Username, password, and site are required.",
     INVALID_CREDENTIALS: "Invalid credentials.",
-    LOGIN_FAILED: "Error logging in",
+    LOGIN_FAILED: "Error logging in.",
     MISSING_TOKEN: "Access token is missing.",
     INVALID_TOKEN: "Invalid or expired token.",
 };

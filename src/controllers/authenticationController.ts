@@ -97,6 +97,7 @@ export const login = async (req: Request, res: Response) => {
         res.json({ token, user });
     } catch (e) {
         res.status(500).json({ error: AUTHENTICATION_ERRORS.LOGIN_FAILED });
+        return;
     }
 };
 
