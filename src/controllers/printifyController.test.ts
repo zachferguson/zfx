@@ -58,13 +58,20 @@ import {
 // Pull the mocked email fn to assert calls later
 import { sendOrderConfirmation } from "../services/emailService";
 
+import {
+    validateGetProducts,
+    validateGetShippingOptions,
+    validateSubmitOrder,
+    validateGetOrderStatus,
+} from "./printifyController";
+
 function makeApp() {
     const app = express();
     app.use(express.json());
-    app.get("/products/:id?", getProducts);
-    app.post("/shipping/:id?", getShippingOptions);
-    app.post("/orders", submitOrder);
-    app.post("/order-status", getOrderStatus);
+    app.get("/products/:id?", validateGetProducts, getProducts);
+    app.post("/shipping/:id?", validateGetShippingOptions, getShippingOptions);
+    app.post("/orders", validateSubmitOrder, submitOrder);
+    app.post("/order-status", validateGetOrderStatus, getOrderStatus);
     return app;
 }
 
@@ -86,7 +93,7 @@ afterEach(() => {
 it("GET /products -> 400 when store id missing", async () => {
     const res = await request(app).get("/products");
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Store ID is required.");
+    expect(res.body.errors).toContain("Store ID is required.");
     expect(h.printify.getProducts).not.toHaveBeenCalled();
 });
 
@@ -105,7 +112,7 @@ it("GET /products/:id -> 500 on service error", async () => {
 
     const res = await request(app).get("/products/123");
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe("Failed to fetch products from Printify");
+    expect(res.body.error).toBe("Failed to fetch products from Printify.");
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
 });
@@ -116,7 +123,7 @@ it("GET /products/:id -> 500 on service error", async () => {
 it("POST /shipping/:id -> 400 when required fields missing", async () => {
     const res = await request(app).post("/shipping/1").send({});
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Missing required fields.");
+    expect(res.body.errors).toContain("Missing required fields.");
     expect(h.printify.getShippingRates).not.toHaveBeenCalled();
 });
 
@@ -156,7 +163,7 @@ it("POST /shipping/:id -> 500 on service error", async () => {
 it("POST /orders -> 400 when required fields missing", async () => {
     const res = await request(app).post("/orders").send({});
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
+    expect(res.body.errors).toContain(
         "Missing storeId, order details, or stripe_payment_id."
     );
     expect(h.order.saveOrder).not.toHaveBeenCalled();
@@ -308,7 +315,7 @@ it("POST /orders -> 500 when saveOrder throws", async () => {
 it("POST /order-status -> 400 when missing orderId/email", async () => {
     const res = await request(app).post("/order-status").send({ orderId: "a" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Missing orderId or email.");
+    expect(res.body.errors).toContain("Missing orderId or email.");
 });
 
 it("POST /order-status -> 404 when order not found", async () => {
@@ -393,22 +400,67 @@ it("POST /order-status -> 200 with mapped response", async () => {
     expect(res.body.success).toBe(true);
     expect(res.body.order_status).toBe("in_production");
     expect(res.body.tracking_number).toBe("1ZTRACK");
+    expect(res.body.tracking_url).toBe("https://track.example/1ZTRACK");
     expect(res.body.total_price).toBe(1999);
     expect(res.body.total_shipping).toBe(499);
     expect(res.body.currency).toBe("USD");
+    expect(res.body.created_at).toBe("2025-08-31T12:00:00Z");
 
-    expect(res.body.customer.first_name).toBe("Ada");
-    expect(res.body.items[0]).toEqual(
-        expect.objectContaining({
-            product_id: 11,
-            variant_id: 22,
-            quantity: 1,
-            status: "in_production",
-            title: "Shirt",
-            variant_label: "L",
-            sku: "SKU1",
-        })
-    );
+    // Customer fields
+    expect(res.body.customer).toEqual({
+        first_name: "Ada",
+        last_name: "Lovelace",
+        phone: "123",
+        country: "US",
+        region: "NY",
+        city: "NYC",
+        address1: "1 Main",
+        address2: "",
+        zip: "10001",
+    });
+
+    // Items array and all fields
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toEqual({
+        product_id: 11,
+        variant_id: 22,
+        quantity: 1,
+        print_provider_id: 333,
+        price: 1999,
+        shipping_cost: 499,
+        status: "in_production",
+        title: "Shirt",
+        variant_label: "L",
+        sku: "SKU1",
+        country: "US",
+        sent_to_production_at: "2025-08-31T12:10:00Z",
+        fulfilled_at: null,
+    });
+
+    // Metadata
+    expect(res.body.metadata).toEqual({
+        order_type: "manual",
+        shop_order_id: "SO-1",
+        shop_order_label: "Order #1",
+        shop_fulfilled_at: null,
+    });
+
+    // Shipping details
+    expect(res.body.shipping_method).toBe("STANDARD");
+    expect(res.body.is_printify_express).toBe(false);
+    expect(res.body.is_economy_shipping).toBe(false);
+
+    // Shipments array and all fields
+    expect(res.body.shipments).toHaveLength(1);
+    expect(res.body.shipments[0]).toEqual({
+        carrier: "UPS",
+        tracking_number: "1ZTRACK",
+        tracking_url: "https://track.example/1ZTRACK",
+        delivered_at: null,
+    });
+
+    // Printify connect
+    expect(res.body.printify_connect).toBeNull();
 
     expect(h.order.getOrderByCustomer).toHaveBeenCalledWith("ord-1", "a@b.com");
     expect(h.printify.getOrder).toHaveBeenCalledWith("store-1", "po-123");

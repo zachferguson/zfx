@@ -18,6 +18,12 @@ import {
     createNewArticle,
     addDailyMetrics,
     getDailyMetrics,
+    validateGetSingleBlogById,
+    validateCreateNewBlog,
+    validateGetSingleArticleById,
+    validateCreateNewArticle,
+    validateAddDailyMetrics,
+    validateGetDailyMetrics,
 } from "./zachtothegymController";
 
 function buildApp() {
@@ -25,15 +31,19 @@ function buildApp() {
     app.use(express.json());
 
     app.get("/blogs", getBlogs);
-    app.get("/blogs/:id", getSingleBlogById);
-    app.post("/blogs", createNewBlog);
+    app.get("/blogs/:id", validateGetSingleBlogById, getSingleBlogById);
+    app.post("/blogs", validateCreateNewBlog, createNewBlog);
 
     app.get("/articles", getArticles);
-    app.get("/articles/:id", getSingleArticleById);
-    app.post("/articles", createNewArticle);
+    app.get(
+        "/articles/:id",
+        validateGetSingleArticleById,
+        getSingleArticleById
+    );
+    app.post("/articles", validateCreateNewArticle, createNewArticle);
 
-    app.post("/metrics/daily", addDailyMetrics);
-    app.get("/metrics/daily", getDailyMetrics);
+    app.post("/metrics/daily", validateAddDailyMetrics, addDailyMetrics);
+    app.get("/metrics/daily", validateGetDailyMetrics, getDailyMetrics);
 
     return app;
 }
@@ -70,14 +80,14 @@ describe("zachtothegym controller", () => {
         vi.spyOn(BlogsSvc, "getAllBlogs").mockRejectedValue(new Error("boom"));
         const res = await request(app).get("/blogs");
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Failed to fetch blogs");
+        expect(res.body.error).toBeDefined();
     });
 
     it("GET /blogs/:id -> 400 invalid id", async () => {
         const spy = vi.spyOn(BlogsSvc, "getBlogById");
         const res = await request(app).get("/blogs/not-a-number");
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Invalid blog ID");
+        expect(res.body.errors).toContain("Invalid blog ID.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -85,7 +95,7 @@ describe("zachtothegym controller", () => {
         vi.spyOn(BlogsSvc, "getBlogById").mockResolvedValue(undefined as any);
         const res = await request(app).get("/blogs/123");
         expect(res.status).toBe(404);
-        expect(res.body.message).toBe("Blog not found");
+        expect(res.body.error).toBe("Blog not found.");
     });
 
     it("GET /blogs/:id -> 200 when found", async () => {
@@ -102,7 +112,7 @@ describe("zachtothegym controller", () => {
         const spy = vi.spyOn(BlogsSvc, "createBlog");
         const res = await request(app).post("/blogs").send({ title: "" });
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Title and content are required");
+        expect(res.body.errors).toContain("Title and content are required.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -133,7 +143,7 @@ describe("zachtothegym controller", () => {
         const spy = vi.spyOn(ArticlesSvc, "getArticleById");
         const res = await request(app).get("/articles/banana");
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Invalid article ID");
+        expect(res.body.errors).toContain("Invalid article ID.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -141,7 +151,7 @@ describe("zachtothegym controller", () => {
         vi.spyOn(ArticlesSvc, "getArticleById").mockResolvedValue(null as any);
         const res = await request(app).get("/articles/99");
         expect(res.status).toBe(404);
-        expect(res.body.message).toBe("Article not found");
+        expect(res.body.error).toBe("Article not found.");
     });
 
     it("GET /articles/:id -> 200 when found", async () => {
@@ -158,7 +168,7 @@ describe("zachtothegym controller", () => {
         const spy = vi.spyOn(ArticlesSvc, "createArticle");
         const res = await request(app).post("/articles").send({ title: "T" });
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Missing required fields.");
+        expect(res.body.errors).toContain("Missing required fields.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -189,7 +199,7 @@ describe("zachtothegym controller", () => {
             .post("/metrics/daily")
             .send({ steps: 1000 });
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Date is required.");
+        expect(res.body.errors).toContain("Date is required.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -212,7 +222,7 @@ describe("zachtothegym controller", () => {
         const spy = vi.spyOn(MetricsSvc, "getMetricsInRange");
         const res = await request(app).get("/metrics/daily");
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe("Start and end dates are required.");
+        expect(res.body.errors).toContain("Start and end dates are required.");
         expect(spy).not.toHaveBeenCalled();
     });
 
@@ -237,7 +247,7 @@ describe("zachtothegym controller", () => {
         );
         const res = await request(app).get("/articles");
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Failed to fetch articles");
+        expect(res.body.error).toBe("Failed to fetch articles.");
     });
 
     it("GET /blogs/:id -> 500 when service throws", async () => {
@@ -246,7 +256,7 @@ describe("zachtothegym controller", () => {
         );
         const res = await request(app).get("/blogs/1");
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Failed to fetch blog");
+        expect(res.body.error).toBe("Failed to fetch blog.");
     });
 
     it("POST /blogs -> 500 when createBlog throws", async () => {
@@ -257,7 +267,7 @@ describe("zachtothegym controller", () => {
             .post("/blogs")
             .send({ title: "T", content: "C", categories: [] });
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Failed to create blog");
+        expect(res.body.error).toBe("Failed to create blog.");
     });
 
     it("GET /articles/:id -> 500 when service throws", async () => {
@@ -266,7 +276,7 @@ describe("zachtothegym controller", () => {
         );
         const res = await request(app).get("/articles/1");
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Failed to fetch article");
+        expect(res.body.error).toBe("Failed to fetch article.");
     });
 
     it("POST /articles -> 500 when createArticle throws", async () => {
@@ -280,7 +290,7 @@ describe("zachtothegym controller", () => {
             categories: [],
         });
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Error creating article.");
+        expect(res.body.error).toBe("Error creating article.");
     });
 
     it("POST /metrics/daily -> 500 when saveDailyMetrics throws", async () => {
@@ -294,7 +304,7 @@ describe("zachtothegym controller", () => {
             .send({ date: "2025-09-01", steps: 1000 });
 
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Server error.");
+        expect(res.body.error).toBe("Server error.");
         expect(errSpy).toHaveBeenCalled();
         errSpy.mockRestore();
     });
@@ -310,7 +320,7 @@ describe("zachtothegym controller", () => {
         );
 
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Server error.");
+        expect(res.body.error).toBe("Server error.");
         expect(errSpy).toHaveBeenCalled();
         errSpy.mockRestore();
     });
