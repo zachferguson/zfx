@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { PRINTIFY_ERRORS } from "../config/printifyErrors";
+import { body, param, validationResult } from "express-validator";
 import { PrintifyService } from "../services/printifyService";
 import { ShippingRatesRequestBody } from "../types/printifyShipping";
 import { PrintifyOrderRequest } from "../types/printifyOrder";
@@ -8,17 +10,25 @@ import { sendOrderConfirmation } from "../services/emailService";
 const printifyService = new PrintifyService(process.env.PRINTIFY_API_KEY || "");
 const orderService = new OrderService();
 
-export const getProducts = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    const { id } = req.params;
-    // id is the store id for printify
-    if (!id) {
-        res.status(400).json({ error: "Store ID is required." });
-        return;
+/**
+ * Gets all Printify products for a given store.
+ *
+ * @route GET /printify/:id/products
+ * @param {Request} req - Express request object, expects store id in params
+ * @param {Response} res - Express response object
+ * @returns Express route handler (no explicit return type; see note)
+ * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
+ *
+ * @remarks
+ */
+export const getProducts = async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res
+            .status(400)
+            .json({ errors: errors.array().map((e) => e.msg) });
     }
-
+    const { id } = req.params;
     try {
         const products = await printifyService.getProducts(id);
         res.status(200).json(products);
@@ -26,21 +36,36 @@ export const getProducts = async (
     } catch (err: any) {
         console.error("Error in printifyController.getProducts", err);
         res.status(500).json({
-            error: "Failed to fetch products from Printify",
+            error: PRINTIFY_ERRORS.FAILED_FETCH_PRODUCTS,
         });
         return;
     }
 };
 
+export const validateGetProducts = [
+    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
+];
+
+/**
+ * Gets Printify shipping options for a given store and order details.
+ *
+ * @route POST /printify/:id/shipping
+ * @param {Request} req - Express request object, expects store id in params and ShippingRatesRequestBody in body
+ * @param {Response} res - Express response object
+ * @returns Express route handler (no explicit return type; see note)
+ * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
+ *
+ * @remarks
+ */
 export const getShippingOptions = async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res
+            .status(400)
+            .json({ errors: errors.array().map((e) => e.msg) });
+    }
     const { id } = req.params;
     const requestBody: ShippingRatesRequestBody = req.body;
-
-    if (!id || !requestBody.address_to || !requestBody.line_items?.length) {
-        res.status(400).json({ error: "Missing required fields." });
-        return;
-    }
-
     try {
         const shippingOptions = await printifyService.getShippingRates(
             id,
@@ -50,12 +75,41 @@ export const getShippingOptions = async (req: Request, res: Response) => {
         return;
     } catch (err: any) {
         console.error("Error fetching shipping rates:", err);
-        res.status(500).json({ error: "Failed to retrieve shipping options." });
+        res.status(500).json({
+            error: PRINTIFY_ERRORS.FAILED_SHIPPING_OPTIONS,
+        });
         return;
     }
 };
 
+export const validateGetShippingOptions = [
+    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
+    body("address_to")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
+    body("line_items")
+        .isArray({ min: 1 })
+        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
+];
+
+/**
+ * Submits a new order to Printify and saves it in the database.
+ *
+ * @route POST /printify/order
+ * @param {Request} req - Express request object, expects storeId, order, and stripe_payment_id in body
+ * @param {Response} res - Express response object
+ * @returns Express route handler (no explicit return type; see note)
+ * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
+ *
+ * @remarks
+ */
 export const submitOrder = async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res
+            .status(400)
+            .json({ errors: errors.array().map((e) => e.msg) });
+    }
     const {
         storeId,
         order,
@@ -65,14 +119,6 @@ export const submitOrder = async (req: Request, res: Response) => {
         order: PrintifyOrderRequest;
         stripe_payment_id: string;
     } = req.body;
-
-    if (!storeId || !order || !stripe_payment_id) {
-        res.status(400).json({
-            error: "Missing storeId, order details, or stripe_payment_id.",
-        });
-        return;
-    }
-
     try {
         const order_number = crypto.randomUUID();
 
@@ -91,7 +137,7 @@ export const submitOrder = async (req: Request, res: Response) => {
             orderStatus: "pending",
         });
 
-        console.log("✅ Order saved in DB:", newOrder);
+        console.log("Order saved in DB:", newOrder);
 
         // submit order to printify
         const printifyResponse = await printifyService.submitOrder(
@@ -99,7 +145,7 @@ export const submitOrder = async (req: Request, res: Response) => {
             order_number,
             order
         );
-        console.log("✅ Order submitted to Printify:", printifyResponse);
+        console.log("Order submitted to Printify:", printifyResponse);
 
         // update database with printify order id
         await orderService.updatePrintifyOrderId(
@@ -117,7 +163,6 @@ export const submitOrder = async (req: Request, res: Response) => {
                     title: li.metadata.title,
                     variant_label: li.metadata.variant_label,
                     quantity: li.quantity,
-                    // metadata.price = price the customer paid (your interface comment says so)
                     price: li.metadata.price,
                 })),
                 shippingMethod: order.shipping_method,
@@ -133,26 +178,47 @@ export const submitOrder = async (req: Request, res: Response) => {
         return;
     } catch (err: any) {
         console.error("Error processing order:", err);
-        res.status(500).json({ error: "Failed to process order." });
+        res.status(500).json({ error: PRINTIFY_ERRORS.FAILED_PROCESS_ORDER });
         return;
     }
 };
 
+export const validateSubmitOrder = [
+    body("storeId")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+    body("order").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+    body("stripe_payment_id")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
+];
+
+/**
+ * Gets the status and details of a Printify order for a customer.
+ *
+ * @route POST /printify/order-status
+ * @param {Request} req - Express request object, expects orderId and email in body
+ * @param {Response} res - Express response object
+ * @returns Express route handler (no explicit return type; see note)
+ * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
+ *
+ * @remarks
+ */
 export const getOrderStatus = async (req: Request, res: Response) => {
-    const { orderId, email } = req.body;
-
-    if (!orderId || !email) {
-        res.status(400).json({ error: "Missing orderId or email." });
-        return;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res
+            .status(400)
+            .json({ errors: errors.array().map((e) => e.msg) });
     }
-
+    const { orderId, email } = req.body;
     try {
         const order = await orderService.getOrderByCustomer(
             orderId as string,
             email as string
         );
         if (!order) {
-            res.status(404).json({ error: "Order not found." });
+            res.status(404).json({ error: PRINTIFY_ERRORS.ORDER_NOT_FOUND });
             return;
         }
 
@@ -175,7 +241,6 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             customer: {
                 first_name: printifyOrder.address_to?.first_name || "",
                 last_name: printifyOrder.address_to?.last_name || "",
-                //email: printifyOrder.address_to?.email || email, // Default to provided email
                 phone: printifyOrder.address_to?.phone || "",
                 country: printifyOrder.address_to?.country || "",
                 region: printifyOrder.address_to?.region || "",
@@ -183,7 +248,6 @@ export const getOrderStatus = async (req: Request, res: Response) => {
                 address1: printifyOrder.address_to?.address1 || "",
                 address2: printifyOrder.address_to?.address2 || "",
                 zip: printifyOrder.address_to?.zip || "",
-                //company: printifyOrder.address_to?.company || null,
             },
 
             // Ordered items
@@ -192,7 +256,6 @@ export const getOrderStatus = async (req: Request, res: Response) => {
                 variant_id: item.variant_id,
                 quantity: item.quantity,
                 print_provider_id: item.print_provider_id,
-                //cost: item.cost, // Merchant cost
                 price: item.metadata.price, // Price customer paid
                 shipping_cost: item.shipping_cost || 0,
                 status: item.status,
@@ -234,7 +297,16 @@ export const getOrderStatus = async (req: Request, res: Response) => {
         return;
     } catch (err: any) {
         console.error("Error fetching order status:", err);
-        res.status(500).json({ error: "Failed to retrieve order status." });
+        res.status(500).json({ error: PRINTIFY_ERRORS.FAILED_ORDER_STATUS });
         return;
     }
 };
+
+export const validateGetOrderStatus = [
+    body("orderId")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
+    body("email")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
+];

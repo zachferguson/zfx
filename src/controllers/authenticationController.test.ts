@@ -16,7 +16,14 @@ vi.mock("jsonwebtoken", () => ({
 }));
 
 // Import the things under test *after* mocks
-import { register, login, verifyToken } from "./authenticationController";
+import {
+    register,
+    login,
+    verifyToken,
+    validateRegister,
+    validateLogin,
+} from "./authenticationController";
+import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
 import * as AuthSvc from "../services/authenticationService";
 import * as JWT from "jsonwebtoken";
 
@@ -28,8 +35,8 @@ function makeApp() {
     const app = express();
     app.use(express.json());
 
-    app.post("/auth/register", register);
-    app.post("/auth/login", login);
+    app.post("/auth/register", validateRegister, register);
+    app.post("/auth/login", validateLogin, login);
 
     // A protected route using verifyToken
     app.get("/protected", verifyToken, (req, res) => {
@@ -57,8 +64,8 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe(
-            "Username, password, email, and site are required."
+        expect(res.body.errors).toContain(
+            AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS
         );
         expect(authSvc.registerUser).not.toHaveBeenCalled();
     });
@@ -103,9 +110,7 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe(
-            "Username or email already exists for this site."
-        );
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.DUPLICATE_USER);
     });
 
     it("POST /auth/register -> 500 on other errors", async () => {
@@ -119,8 +124,8 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Error registering user.");
-        expect(res.body.error).toBeTruthy();
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.REGISTER_FAILED);
+        // error property is no longer included for security
     });
 
     // ---------- login ----------
@@ -132,8 +137,8 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toBe(
-            "Username, password, and site are required."
+        expect(res.body.errors).toContain(
+            AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS
         );
         expect(authSvc.authenticateUser).not.toHaveBeenCalled();
     });
@@ -148,7 +153,7 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(401);
-        expect(res.body.message).toBe("Invalid credentials.");
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.INVALID_CREDENTIALS);
     });
 
     it("POST /auth/login -> 200 returns token and user on success", async () => {
@@ -190,15 +195,15 @@ describe("authController", () => {
         });
 
         expect(res.status).toBe(500);
-        expect(res.body.message).toBe("Error logging in");
-        expect(res.body.error).toBeTruthy();
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.LOGIN_FAILED);
+        // error property is no longer included for security
     });
 
     // ---------- verifyToken middleware ----------
     it("GET /protected -> 401 when no Authorization header", async () => {
         const res = await request(app).get("/protected");
         expect(res.status).toBe(401);
-        expect(res.body.message).toBe("Access token is missing.");
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.MISSING_TOKEN);
         expect(jwt.verify).not.toHaveBeenCalled();
     });
 
@@ -213,7 +218,7 @@ describe("authController", () => {
             .set("Authorization", "Bearer not.a.jwt");
 
         expect(res.status).toBe(403);
-        expect(res.body.message).toBe("Invalid or expired token.");
+        expect(res.body.error).toBe(AUTHENTICATION_ERRORS.INVALID_TOKEN);
         expect(jwt.default.verify).toHaveBeenCalled(); // assert default.verify
     });
 

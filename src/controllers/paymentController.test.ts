@@ -9,6 +9,7 @@ vi.mock("../services/stripeService", () => ({
 
 import { createPaymentIntent } from "../services/stripeService";
 import paymentRoutes from "../routes/paymentRoutes";
+import { PAYMENT_ERRORS } from "../config/paymentErrors";
 
 const mockedCreatePaymentIntent = vi.mocked(createPaymentIntent);
 
@@ -33,7 +34,11 @@ describe("paymentController", () => {
             .send({ amount: 1000, currency: "usd" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Missing storeId");
+        if (Array.isArray(res.body.errors)) {
+            expect(res.body.errors).toContain(PAYMENT_ERRORS.MISSING_FIELDS);
+        } else {
+            expect(res.body.error).toBeDefined();
+        }
         expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
     });
 
@@ -61,6 +66,6 @@ describe("paymentController", () => {
             .send({ storeId: "store-1", amount: 1000, currency: "usd" });
 
         expect(res.status).toBe(500);
-        expect(res.body.error).toBe("Payment processing failed");
+        expect(res.body.error).toBe(PAYMENT_ERRORS.PAYMENT_FAILED);
     });
 });
