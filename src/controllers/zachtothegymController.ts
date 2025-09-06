@@ -51,9 +51,8 @@ export const validateGetSingleBlogById = [
 export const getSingleBlogById = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const blogId = Number(req.params.id);
     try {
@@ -91,9 +90,8 @@ export const validateCreateNewBlog = [
 export const createNewBlog = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { title, content, categories } = req.body;
     try {
@@ -102,6 +100,7 @@ export const createNewBlog = async (req: Request, res: Response) => {
         return;
     } catch (e) {
         res.status(500).json({ error: ZACHTOTHEGYM_ERRORS.FAILED_CREATE_BLOG });
+        return;
     }
 };
 
@@ -145,9 +144,8 @@ export const validateGetSingleArticleById = [
 export const getSingleArticleById = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const articleId = Number(req.params.id);
     try {
@@ -195,9 +193,8 @@ export const validateCreateNewArticle = [
 export const createNewArticle = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { title, summary, content, categories } = req.body;
     try {
@@ -235,9 +232,8 @@ export const validateAddDailyMetrics = [
 export const addDailyMetrics = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const metrics: DailyMetrics = req.body;
     try {
@@ -274,9 +270,8 @@ export const validateGetDailyMetrics = [
 export const getDailyMetrics = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { start, end } = req.query as { start: string; end: string };
     try {

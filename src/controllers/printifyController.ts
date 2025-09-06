@@ -10,6 +10,9 @@ import { sendOrderConfirmation } from "../services/emailService";
 const printifyService = new PrintifyService(process.env.PRINTIFY_API_KEY || "");
 const orderService = new OrderService();
 
+export const validateGetProducts = [
+    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
+];
 /**
  * Gets all Printify products for a given store.
  *
@@ -22,9 +25,8 @@ const orderService = new OrderService();
 export const getProducts = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { id } = req.params;
     try {
@@ -40,10 +42,15 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetProducts = [
+export const validateGetShippingOptions = [
     param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
+    body("address_to")
+        .notEmpty()
+        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
+    body("line_items")
+        .isArray({ min: 1 })
+        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
 ];
-
 /**
  * Gets Printify shipping options for a given store and order details.
  *
@@ -56,9 +63,8 @@ export const validateGetProducts = [
 export const getShippingOptions = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { id } = req.params;
     const requestBody: ShippingRatesRequestBody = req.body;
@@ -78,16 +84,6 @@ export const getShippingOptions = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetShippingOptions = [
-    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
-    body("address_to")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
-    body("line_items")
-        .isArray({ min: 1 })
-        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
-];
-
 /**
  * Submits a new order to Printify and saves it in the database.
  *
@@ -100,9 +96,8 @@ export const validateGetShippingOptions = [
 export const submitOrder = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const {
         storeId,
@@ -199,9 +194,8 @@ export const validateSubmitOrder = [
 export const getOrderStatus = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { orderId, email } = req.body;
     try {

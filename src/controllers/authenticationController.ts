@@ -34,23 +34,25 @@ export const validateRegister = [
 export const register = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { username, password, email, site } = req.body;
     try {
         const user = await registerUser(username, password, email, site);
         res.status(201).json({ message: "User registered", user });
+        return;
     } catch (e: any) {
         if (e.code === "23505") {
             res.status(400).json({
                 error: AUTHENTICATION_ERRORS.DUPLICATE_USER,
             });
+            return;
         } else {
             res.status(500).json({
                 error: AUTHENTICATION_ERRORS.REGISTER_FAILED,
             });
+            return;
         }
     }
 };
@@ -79,9 +81,8 @@ export const validateLogin = [
 export const login = async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res
-            .status(400)
-            .json({ errors: errors.array().map((e) => e.msg) });
+        res.status(400).json({ errors: errors.array().map((e) => e.msg) });
+        return;
     }
     const { username, password, site } = req.body;
     try {

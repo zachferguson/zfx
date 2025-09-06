@@ -5,16 +5,6 @@ import { PAYMENT_ERRORS } from "../config/paymentErrors";
 import { body, validationResult } from "express-validator";
 
 /**
- * Creates a Stripe payment intent for the given store, amount, and currency.
- *
- * @route POST /payment-intent
- * @param {Request} req - Express request object, expects { storeId, amount, currency } in body
- * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
- * @note In TypeScript, Express handlers should omit the return type because they do not return a value; all responses are sent via the res object. This is an intentional exception to the project's explicit return type rule.
- */
-
-/**
  * Validation chain for payment intent creation.
  */
 export const validateCreatePaymentIntent = [
@@ -42,9 +32,10 @@ export const handleCreatePaymentIntent = async (
 ) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res.status(400).json({
+        res.status(400).json({
             errors: errors.array().map((e) => e.msg),
         });
+        return;
     }
     try {
         const { storeId, amount, currency } = req.body;
@@ -54,8 +45,10 @@ export const handleCreatePaymentIntent = async (
             currency
         );
         res.json({ clientSecret });
+        return;
     } catch (error) {
         console.error("Payment intent creation failed:", error);
         res.status(500).json({ error: PAYMENT_ERRORS.PAYMENT_FAILED });
+        return;
     }
 };
