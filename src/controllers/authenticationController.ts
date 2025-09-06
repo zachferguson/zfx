@@ -5,22 +5,8 @@ import {
 } from "../services/authenticationService";
 import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
 import jwt from "jsonwebtoken";
-import { body, validationResult } from "express-validator";
+import { validationResult } from "express-validator";
 
-export const validateRegister = [
-    body("username")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS),
-    body("password")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS),
-    body("email")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS),
-    body("site")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS),
-];
 /**
  * Handles user registration.
  *
@@ -56,17 +42,6 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-export const validateLogin = [
-    body("username")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS),
-    body("password")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS),
-    body("site")
-        .notEmpty()
-        .withMessage(AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS),
-];
 /**
  * Handles user login.
  *

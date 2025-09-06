@@ -2,18 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 
-/**
- * Mock the controller and middleware modules the router imports.
- * We export vi.fn() handlers so we can assert calls and tweak behavior per test.
- */
-vi.mock("../controllers/zachtothegymController", () => {
+vi.mock("../../../src/controllers/zachtothegymController", () => {
     return {
         getBlogs: vi.fn((req, res) => res.json([{ id: 1, title: "Hello" }])),
         getSingleBlogById: vi.fn((req, res) =>
             res.json({ id: Number(req.params.id) })
         ),
         createNewBlog: vi.fn((req, res) => res.status(201).json({ ok: true })),
-
         getArticles: vi.fn((req, res) => res.json([{ id: 1, title: "A1" }])),
         getSingleArticleById: vi.fn((req, res) =>
             res.json({ id: Number(req.params.id) })
@@ -21,7 +16,6 @@ vi.mock("../controllers/zachtothegymController", () => {
         createNewArticle: vi.fn((req, res) =>
             res.status(201).json({ ok: true })
         ),
-
         addDailyMetrics: vi.fn((req, res) =>
             res.status(200).json({ ok: true })
         ),
@@ -31,14 +25,13 @@ vi.mock("../controllers/zachtothegymController", () => {
     };
 });
 
-vi.mock("../middleware/authenticationMiddleware", () => ({
+vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
     verifyToken: vi.fn((_req, _res, next) => next()),
 }));
 
-// Import AFTER mocks so router gets the mocked deps
-import router from "./zachtothegymRoutes";
-import * as Controller from "../controllers/zachtothegymController";
-import { verifyToken } from "../middleware/authenticationMiddleware";
+import router from "../../../src/routes/zachtothegymRoutes";
+import * as Controller from "../../../src/controllers/zachtothegymController";
+import { verifyToken } from "../../../src/middleware/authenticationMiddleware";
 
 function makeApp() {
     const app = express();
@@ -47,7 +40,7 @@ function makeApp() {
     return app;
 }
 
-describe("zachtothegym router", () => {
+describe("zachtothegym router integration", () => {
     let app: express.Express;
 
     beforeEach(() => {
@@ -56,7 +49,6 @@ describe("zachtothegym router", () => {
     });
 
     // ---- public routes ----
-
     it("GET /zachtothegym/blogs hits getBlogs", async () => {
         const res = await request(app).get("/zachtothegym/blogs");
         expect(res.status).toBe(200);
@@ -95,7 +87,6 @@ describe("zachtothegym router", () => {
     });
 
     // ---- protected routes (verifyToken) ----
-
     it("POST /zachtothegym/blogs calls verifyToken then createNewBlog", async () => {
         const res = await request(app)
             .post("/zachtothegym/blogs")

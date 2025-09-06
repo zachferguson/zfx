@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 
 // --- Mocks ---
-vi.mock("../services/authenticationService", () => ({
+vi.mock("../../../src/services/authenticationService", () => ({
     registerUser: vi.fn(),
     authenticateUser: vi.fn(),
 }));
@@ -12,41 +12,37 @@ vi.mock("jsonwebtoken", () => ({
     default: {
         verify: vi.fn(),
     },
-    verify: vi.fn(), // if you import named or default, both are covered
+    verify: vi.fn(),
 }));
 
-// Import the things under test *after* mocks
 import {
     register,
     login,
     verifyToken,
+} from "../../../src/controllers/authenticationController";
+import {
     validateRegister,
     validateLogin,
-} from "./authenticationController";
-import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
-import * as AuthSvc from "../services/authenticationService";
+} from "../../../src/validators/authenticationValidators";
+import { AUTHENTICATION_ERRORS } from "../../../src/config/authenticationErrors";
+import * as AuthSvc from "../../../src/services/authenticationService";
 import * as JWT from "jsonwebtoken";
 
 const authSvc = vi.mocked(AuthSvc);
 const jwt = vi.mocked(JWT as any);
 
-// Small helper to mount routes for controller tests
 function makeApp() {
     const app = express();
     app.use(express.json());
-
     app.post("/auth/register", validateRegister, register);
     app.post("/auth/login", validateLogin, login);
-
-    // A protected route using verifyToken
     app.get("/protected", verifyToken, (req, res) => {
         res.json({ ok: true, user: (req as any).user });
     });
-
     return app;
 }
 
-describe("authController", () => {
+describe("authController (integration)", () => {
     let app: express.Express;
 
     beforeEach(() => {
@@ -54,7 +50,6 @@ describe("authController", () => {
         vi.clearAllMocks();
     });
 
-    // ---------- register ----------
     it("POST /auth/register -> 400 when required fields missing", async () => {
         const res = await request(app).post("/auth/register").send({
             // username missing
@@ -62,7 +57,6 @@ describe("authController", () => {
             email: "a@b.com",
             site: "site-1",
         });
-
         expect(res.status).toBe(400);
         expect(res.body.errors).toContain(
             AUTHENTICATION_ERRORS.MISSING_REGISTER_FIELDS
@@ -78,14 +72,12 @@ describe("authController", () => {
             site: "site-1",
             role: "user",
         });
-
         const res = await request(app).post("/auth/register").send({
             username: "zach",
             password: "pw",
             email: "z@x.com",
             site: "site-1",
         });
-
         expect(res.status).toBe(201);
         expect(res.body.message).toBe("User registered");
         expect(res.body.user).toEqual(
@@ -101,41 +93,34 @@ describe("authController", () => {
 
     it("POST /auth/register -> 400 on unique violation (code 23505)", async () => {
         authSvc.registerUser.mockRejectedValue({ code: "23505" });
-
         const res = await request(app).post("/auth/register").send({
             username: "dup",
             password: "pw",
             email: "dup@x.com",
             site: "site-1",
         });
-
         expect(res.status).toBe(400);
         expect(res.body.error).toBe(AUTHENTICATION_ERRORS.DUPLICATE_USER);
     });
 
     it("POST /auth/register -> 500 on other errors", async () => {
         authSvc.registerUser.mockRejectedValue(new Error("db down"));
-
         const res = await request(app).post("/auth/register").send({
             username: "u",
             password: "pw",
             email: "u@x.com",
             site: "site-1",
         });
-
         expect(res.status).toBe(500);
         expect(res.body.error).toBe(AUTHENTICATION_ERRORS.REGISTER_FAILED);
-        // error property is no longer included for security
     });
 
-    // ---------- login ----------
     it("POST /auth/login -> 400 when required fields missing", async () => {
         const res = await request(app).post("/auth/login").send({
             username: "z",
             // password missing
             site: "site-1",
         });
-
         expect(res.status).toBe(400);
         expect(res.body.errors).toContain(
             AUTHENTICATION_ERRORS.MISSING_LOGIN_FIELDS
@@ -145,13 +130,11 @@ describe("authController", () => {
 
     it("POST /auth/login -> 401 when invalid credentials", async () => {
         authSvc.authenticateUser.mockResolvedValue(null);
-
         const res = await request(app).post("/auth/login").send({
             username: "nope",
             password: "bad",
             site: "site-1",
         });
-
         expect(res.status).toBe(401);
         expect(res.body.error).toBe(AUTHENTICATION_ERRORS.INVALID_CREDENTIALS);
     });
@@ -168,13 +151,11 @@ describe("authController", () => {
             token: "jwt.token.here",
             user,
         });
-
         const res = await request(app).post("/auth/login").send({
             username: "z",
             password: "pw",
             site: "site-1",
         });
-
         expect(res.status).toBe(200);
         expect(res.body.token).toBe("jwt.token.here");
         expect(res.body.user).toEqual(user);
@@ -187,19 +168,15 @@ describe("authController", () => {
 
     it("POST /auth/login -> 500 on service throw", async () => {
         authSvc.authenticateUser.mockRejectedValue(new Error("boom"));
-
         const res = await request(app).post("/auth/login").send({
             username: "z",
             password: "pw",
             site: "site-1",
         });
-
         expect(res.status).toBe(500);
         expect(res.body.error).toBe(AUTHENTICATION_ERRORS.LOGIN_FAILED);
-        // error property is no longer included for security
     });
 
-    // ---------- verifyToken middleware ----------
     it("GET /protected -> 401 when no Authorization header", async () => {
         const res = await request(app).get("/protected");
         expect(res.status).toBe(401);
@@ -208,29 +185,23 @@ describe("authController", () => {
     });
 
     it("GET /protected -> 403 when jwt.verify throws", async () => {
-        // IMPORTANT: stub the default export's verify
         (jwt.default.verify as any).mockImplementation(() => {
             throw new Error("bad token");
         });
-
         const res = await request(app)
             .get("/protected")
             .set("Authorization", "Bearer not.a.jwt");
-
         expect(res.status).toBe(403);
         expect(res.body.error).toBe(AUTHENTICATION_ERRORS.INVALID_TOKEN);
-        expect(jwt.default.verify).toHaveBeenCalled(); // assert default.verify
+        expect(jwt.default.verify).toHaveBeenCalled();
     });
 
     it("GET /protected -> 200 when jwt verifies and attaches user", async () => {
         const decoded = { sub: "u1", role: "user" };
-        // IMPORTANT: stub the default export's verify
         (jwt.default.verify as any).mockReturnValue(decoded as any);
-
         const res = await request(app)
             .get("/protected")
             .set("Authorization", "Bearer real.jwt.here");
-
         expect(res.status).toBe(200);
         expect(res.body.ok).toBe(true);
         expect(res.body.user).toEqual(decoded);

@@ -2,14 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 
-// --- mock stripeService ---
-vi.mock("../services/stripeService", () => ({
+vi.mock("../../../src/services/stripeService", () => ({
     createPaymentIntent: vi.fn(),
 }));
 
-import { createPaymentIntent } from "../services/stripeService";
-import paymentRoutes from "../routes/paymentRoutes";
-import { PAYMENT_ERRORS } from "../config/paymentErrors";
+import { createPaymentIntent } from "../../../src/services/stripeService";
+import paymentRoutes from "../../../src/routes/paymentRoutes";
+import { PAYMENT_ERRORS } from "../../../src/config/paymentErrors";
 
 const mockedCreatePaymentIntent = vi.mocked(createPaymentIntent);
 
@@ -20,7 +19,7 @@ function makeApp() {
     return app;
 }
 
-describe("paymentController", () => {
+describe("paymentController (integration)", () => {
     let app: express.Express;
 
     beforeEach(() => {
@@ -32,7 +31,6 @@ describe("paymentController", () => {
         const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ amount: 1000, currency: "usd" });
-
         expect(res.status).toBe(400);
         if (Array.isArray(res.body.errors)) {
             expect(res.body.errors).toContain(PAYMENT_ERRORS.MISSING_FIELDS);
@@ -44,11 +42,9 @@ describe("paymentController", () => {
 
     it("POST /payments/create-payment-intent -> 200 returns clientSecret", async () => {
         mockedCreatePaymentIntent.mockResolvedValue("secret_123");
-
         const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", amount: 1000, currency: "usd" });
-
         expect(res.status).toBe(200);
         expect(res.body.clientSecret).toBe("secret_123");
         expect(mockedCreatePaymentIntent).toHaveBeenCalledWith(
@@ -60,11 +56,9 @@ describe("paymentController", () => {
 
     it("POST /payments/create-payment-intent -> 500 when service throws", async () => {
         mockedCreatePaymentIntent.mockRejectedValue(new Error("stripe down"));
-
         const res = await request(app)
             .post("/payments/create-payment-intent")
             .send({ storeId: "store-1", amount: 1000, currency: "usd" });
-
         expect(res.status).toBe(500);
         expect(res.body.error).toBe(PAYMENT_ERRORS.PAYMENT_FAILED);
     });

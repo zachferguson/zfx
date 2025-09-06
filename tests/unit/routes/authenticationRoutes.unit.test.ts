@@ -2,10 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 
-/**
- * Hoisted stubs for the controller handlers & middleware.
- * We'll tweak their behavior per-test.
- */
 const h = vi.hoisted(() => ({
     ctrl: {
         login: vi.fn((req, res) =>
@@ -22,17 +18,16 @@ const h = vi.hoisted(() => ({
     },
 }));
 
-vi.mock("../controllers/authenticationController", () => ({
+vi.mock("../../../src/controllers/authenticationController", () => ({
     login: h.ctrl.login,
     register: h.ctrl.register,
 }));
 
-vi.mock("../middleware/authenticationMiddleware", () => ({
+vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
     verifyToken: h.mw.verifyToken,
 }));
 
-// Import AFTER mocks so the router uses the mocked deps.
-import router from "./authenticationRoutes";
+import router from "../../../src/routes/authenticationRoutes";
 
 function makeApp() {
     const app = express();
@@ -41,7 +36,7 @@ function makeApp() {
     return app;
 }
 
-describe("authenticationRoutes", () => {
+describe("authenticationRoutes (unit)", () => {
     let app: express.Express;
 
     beforeEach(() => {
@@ -53,7 +48,6 @@ describe("authenticationRoutes", () => {
     it("POST /auth/login routes to controller.login", async () => {
         const payload = { username: "zach", password: "pw", site: "site-1" };
         const res = await request(app).post("/auth/login").send(payload);
-
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ ok: true, route: "login", body: payload });
         expect(h.ctrl.login).toHaveBeenCalledTimes(1);
@@ -67,7 +61,6 @@ describe("authenticationRoutes", () => {
             site: "site-1",
         };
         const res = await request(app).post("/auth/register").send(payload);
-
         expect(res.status).toBe(201);
         expect(res.body).toEqual({
             ok: true,
@@ -83,9 +76,7 @@ describe("authenticationRoutes", () => {
         h.mw.verifyToken.mockImplementationOnce((req, res) => {
             res.status(401).json({ message: "Access token is missing." });
         });
-
         const res = await request(app).get("/auth/profile");
-
         expect(res.status).toBe(401);
         expect(res.body.message).toBe("Access token is missing.");
         // Controller handlers are unrelated to this route; ensure they didn't run
@@ -98,9 +89,7 @@ describe("authenticationRoutes", () => {
             (req as any).user = { id: 1, username: "zach", role: "user" };
             next();
         });
-
         const res = await request(app).get("/auth/profile");
-
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             message: "Protected route accessed",
