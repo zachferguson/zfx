@@ -19,7 +19,7 @@ import { body, param, query, validationResult } from "express-validator";
  * @route GET /blogs
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
+ * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and an array of blogs. On error, responds with 500 and an error message.
  */
 export const getBlogs = async (req: Request, res: Response) => {
@@ -44,7 +44,7 @@ export const validateGetSingleBlogById = [
  * @route GET /blogs/:id
  * @param {Request} req - Express request object, expects blog id in params
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
+ * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and a blog object. On error, responds with 400 (validation), 404 (not found), or 500 (server error) and an error message.
  */
 export const getSingleBlogById = async (req: Request, res: Response) => {
@@ -82,7 +82,7 @@ export const validateCreateNewBlog = [
  * @route POST /blogs
  * @param {Request} req - Express request object, expects title, content, categories in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const createNewBlog = async (req: Request, res: Response) => {
@@ -108,7 +108,7 @@ export const createNewBlog = async (req: Request, res: Response) => {
  * @route GET /articles
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const getArticles = async (req: Request, res: Response) => {
@@ -135,7 +135,7 @@ export const validateGetSingleArticleById = [
  * @route GET /articles/:id
  * @param {Request} req - Express request object, expects article id in params
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const getSingleArticleById = async (req: Request, res: Response) => {
@@ -183,7 +183,7 @@ export const validateCreateNewArticle = [
  * @route POST /articles
  * @param {Request} req - Express request object, expects title, summary, content, categories in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const createNewArticle = async (req: Request, res: Response) => {
@@ -221,7 +221,7 @@ export const validateAddDailyMetrics = [
  * @route POST /metrics
  * @param {Request} req - Express request object, expects DailyMetrics in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const addDailyMetrics = async (req: Request, res: Response) => {
@@ -258,7 +258,7 @@ export const validateGetDailyMetrics = [
  * @route GET /metrics?start=YYYY-MM-DD&end=YYYY-MM-DD
  * @param {Request} req - Express request object, expects start and end query params
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const getDailyMetrics = async (req: Request, res: Response) => {

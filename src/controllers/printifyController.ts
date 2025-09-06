@@ -19,7 +19,7 @@ export const validateGetProducts = [
  * @route GET /printify/:id/products
  * @param {Request} req - Express request object, expects store id in params
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
+ * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and an array of products. On error, responds with 400 (validation) or 500 (server error) and an error message.
  */
 export const getProducts = async (req: Request, res: Response) => {
@@ -57,7 +57,7 @@ export const validateGetShippingOptions = [
  * @route POST /printify/:id/shipping
  * @param {Request} req - Express request object, expects store id in params and ShippingRatesRequestBody in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return value; sends response via res)
+ * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and shipping options. On error, responds with 400 (validation) or 500 (server error) and an error message.
  */
 export const getShippingOptions = async (req: Request, res: Response) => {
@@ -99,7 +99,7 @@ export const validateSubmitOrder = [
  * @route POST /printify/order
  * @param {Request} req - Express request object, expects storeId, order, and stripe_payment_id in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const submitOrder = async (req: Request, res: Response) => {
@@ -196,7 +196,7 @@ export const validateGetOrderStatus = [
  * @route POST /printify/order-status
  * @param {Request} req - Express request object, expects orderId and email in body
  * @param {Response} res - Express response object
- * @returns Express route handler (no explicit return type; see note)
+ * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
 export const getOrderStatus = async (req: Request, res: Response) => {
