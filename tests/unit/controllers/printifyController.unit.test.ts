@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockGlobalCryptoRandomUUID } from "../../utils/testUtils";
 import { Request, Response } from "express";
 import * as controller from "../../../src/controllers/printifyController";
 import { printifyService } from "../../../src/controllers/printifyController";
@@ -12,10 +13,21 @@ import { validationResult } from "express-validator";
 
 describe("printifyController (unit)", () => {
     function mockRes() {
-        const res: Partial<Response> = {};
-        res.status = vi.fn().mockReturnThis();
-        res.json = vi.fn().mockReturnThis();
-        return res as Response;
+        const res: Partial<Response> & { statusCode?: number; body?: unknown } =
+            {};
+
+        res.status = vi.fn().mockImplementation((code: number) => {
+            res.statusCode = code;
+            return res as Response;
+        });
+
+        res.json = vi.fn().mockImplementation((payload: unknown) => {
+            res.body = payload;
+            return res as Response;
+        });
+
+        // keep chaining behavior identical to Express
+        return res as Response & { statusCode?: number; body?: unknown };
     }
 
     beforeEach(() => {
@@ -96,10 +108,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
-            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
-            vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
-                randomUUID: () => "uuid-1",
-            });
+            mockGlobalCryptoRandomUUID("uuid-1");
             const saveOrderSpy = vi
                 .spyOn(orderServiceModule.OrderService.prototype, "saveOrder")
                 .mockResolvedValue({ id: "123" });
@@ -206,10 +215,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
-            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
-            vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
-                randomUUID: () => "uuid-1",
-            });
+            mockGlobalCryptoRandomUUID("uuid-1");
             vi.spyOn(
                 orderServiceModule.OrderService.prototype,
                 "saveOrder"
@@ -226,60 +232,173 @@ describe("printifyController (unit)", () => {
     });
 
     describe("getOrderStatus", () => {
-        it("returns 200 and order status on success", async () => {
+        it("returns 422 when order exists but has no printify_order_id", async () => {
             const req = {
                 body: { orderId: "o1", email: "a@b.com" },
             } as unknown as Request;
             const res = mockRes();
+
             const getOrderByCustomerSpy = vi
                 .spyOn(
                     orderServiceModule.OrderService.prototype,
                     "getOrderByCustomer"
                 )
                 .mockResolvedValue({
-                    orderId: "o1",
                     store_id: "s1",
-                    printify_order_id: "po1",
+                    printify_order_id: null,
                     total_price: 100,
                     shipping_cost: 10,
                     currency: "USD",
                 });
+
+            const getOrderSpy = vi.spyOn(printifyService, "getOrder");
+
+            await controller.getOrderStatus(req, res);
+
+            expect(getOrderByCustomerSpy).toHaveBeenCalledWith("o1", "a@b.com");
+            expect(getOrderSpy).not.toHaveBeenCalled();
+
+            expect(res.status).toHaveBeenCalledWith(422);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: expect.any(String), // ORDER_NOT_FOUND
+                })
+            );
+
+            getOrderByCustomerSpy.mockRestore();
+            getOrderSpy.mockRestore();
+        });
+
+        it("returns 200 and maps key fields on success", async () => {
+            const req = {
+                body: { orderId: "o1", email: "a@b.com" },
+            } as unknown as Request;
+            const res = mockRes();
+
+            // DB lookup -> exact OrderLookup shape
+            const getOrderByCustomerSpy = vi
+                .spyOn(
+                    orderServiceModule.OrderService.prototype,
+                    "getOrderByCustomer"
+                )
+                .mockResolvedValue({
+                    store_id: "s1",
+                    printify_order_id: "po1",
+                    total_price: 12345,
+                    shipping_cost: 999,
+                    currency: "USD",
+                });
+
+            // Printify order -> include shipments + address_to + line_items
+            const printifyOrderMock = {
+                id: "po1",
+                status: "shipped",
+                created_at: "2025-01-02T03:04:05Z",
+                total_price: 12345,
+                total_shipping: 999,
+                currency: "USD",
+                shipping_method: 1,
+                is_printify_express: false,
+                is_economy_shipping: true,
+                address_to: {
+                    first_name: "John",
+                    last_name: "Doe",
+                    phone: "123",
+                    country: "US",
+                    region: "CA",
+                    city: "Los Angeles",
+                    address1: "123 Main St",
+                    address2: "",
+                    zip: "90001",
+                },
+                line_items: [
+                    {
+                        product_id: "prod1",
+                        variant_id: 111,
+                        quantity: 2,
+                        print_provider_id: 999,
+                        shipping_cost: 0,
+                        status: "fulfilled",
+                        metadata: {
+                            price: 1999,
+                            title: "Cool Tee",
+                            variant_label: "Black / L",
+                            sku: "SKU123",
+                            country: "US",
+                        },
+                        sent_to_production_at: "2025-01-02T03:05:00Z",
+                        fulfilled_at: "2025-01-03T10:00:00Z",
+                    },
+                ],
+                shipments: [
+                    {
+                        carrier: "usps",
+                        number: "TRACK123",
+                        url: "https://t.example",
+                    },
+                ],
+                metadata: {
+                    order_type: "manual",
+                    shop_order_id: "so-1",
+                    shop_order_label: "SO-1",
+                    shop_fulfilled_at: null,
+                },
+                printify_connect: null,
+            };
+
             const getOrderSpy = vi
                 .spyOn(printifyService, "getOrder")
-                .mockResolvedValue({
-                    id: "po1",
-                    status: "shipped",
-                    created_at: "now",
-                    total_price: 100,
-                    total_shipping: 10,
-                    currency: "USD",
-                    shipping_method: 1,
-                    address_to: {
+                .mockResolvedValue(printifyOrderMock as any);
+
+            await controller.getOrderStatus(req, res);
+
+            // Sanity checks on calls
+            expect(getOrderByCustomerSpy).toHaveBeenCalledWith("o1", "a@b.com");
+            expect(getOrderSpy).toHaveBeenCalledWith("s1", "po1");
+
+            // Response assertions
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    order_status: "shipped",
+                    tracking_number: "TRACK123",
+                    tracking_url: "https://t.example",
+                    total_price: 12345, // from DB
+                    total_shipping: 999, // from DB
+                    currency: "USD", // from DB
+                    created_at: "2025-01-02T03:04:05Z",
+                    customer: expect.objectContaining({
                         first_name: "John",
                         last_name: "Doe",
                         country: "US",
                         region: "CA",
                         city: "Los Angeles",
                         address1: "123 Main St",
+                        address2: "",
                         zip: "90001",
-                    },
-                    line_items: [],
-                    shipments: [
-                        {
-                            carrier: "usps",
-                            number: "tn",
-                            url: "url",
-                        },
+                        phone: "123",
+                    }),
+                    items: [
+                        expect.objectContaining({
+                            product_id: "prod1",
+                            variant_id: 111,
+                            quantity: 2,
+                            print_provider_id: 999,
+                            price: 1999, // from metadata.price
+                            shipping_cost: 0,
+                            status: "fulfilled",
+                            title: "Cool Tee",
+                            variant_label: "Black / L",
+                            sku: "SKU123",
+                            country: "US",
+                            sent_to_production_at: "2025-01-02T03:05:00Z",
+                            fulfilled_at: "2025-01-03T10:00:00Z",
+                        }),
                     ],
-                });
-            await controller.getOrderStatus(req, res);
-            expect(res.status).toHaveBeenCalledWith(200);
-            expect(res.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: true,
-                    order_status: expect.any(String),
                 })
             );
+
             getOrderByCustomerSpy.mockRestore();
             getOrderSpy.mockRestore();
         });

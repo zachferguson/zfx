@@ -35,12 +35,24 @@ export type OrderEmailSummary = {
     currency: string; // e.g. "USD"
 };
 
+/**
+ * Formats a number as currency using the specified currency code.
+ * @param {number} amount - The amount in cents.
+ * @param {string} currency - The currency code (e.g., 'USD').
+ * @returns {string} The formatted currency string.
+ */
 const formatMoney = (amount: number, currency: string) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
         amount / 100 // assuming cents
     );
 
 // Optional: translate your numeric shipping method to a label
+
+/**
+ * Maps a shipping method ID to a human-readable label.
+ * @param {number} id - The shipping method ID.
+ * @returns {string} The label for the shipping method.
+ */
 const shippingMethodLabel = (id: number) => {
     // Stub: customize to your Printify mapping if you have one
     const map: Record<number, string> = {
@@ -50,12 +62,20 @@ const shippingMethodLabel = (id: number) => {
     return map[id] || `Method #${id}`;
 };
 
+/**
+ * Sends an order confirmation email to the customer for a given store and order.
+ * @param {string} storeId - The store identifier.
+ * @param {string} toEmail - The recipient's email address.
+ * @param {string} orderId - The order identifier.
+ * @param {OrderEmailSummary} summary - The summary of the order.
+ * @returns {Promise<{ success: boolean; error?: string; messageId?: string }>} The result of the email send attempt.
+ */
 export const sendOrderConfirmation = async (
     storeId: string,
     toEmail: string,
     orderId: string,
     summary: OrderEmailSummary
-) => {
+): Promise<{ success: boolean; error?: string; messageId?: string }> => {
     const emailConfig = STORE_EMAILS[storeId];
 
     if (!emailConfig || !emailConfig.user || !emailConfig.pass) {
@@ -166,19 +186,19 @@ export const sendOrderConfirmation = async (
         subject: `${emailConfig.storeName} Order Confirmation - ${orderId}`,
         text: `Thank you for your order!
 
-Your order ID is ${orderId}.
+        Your order ID is ${orderId}.
 
-Track your order: ${url.toString()}
+        Track your order: ${url.toString()}
 
-Shipping To:
-${textAddress}
+        Shipping To:
+        ${textAddress}
 
-Items:
-${textItems}
+        Items:
+        ${textItems}
 
-Shipping Method: ${shippingLabel}
-Order Total: ${totalFormatted}
-`,
+        Shipping Method: ${shippingLabel}
+        Order Total: ${totalFormatted}
+        `,
         html: `
       <h2>Thank you for your order!</h2>
       <p>Your order ID is <strong>${escapeHtml(orderId)}</strong>.</p>

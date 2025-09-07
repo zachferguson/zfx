@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { OrderService } from "./orderService";
-import db from "../db/connection";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { OrderService } from "../../../src/services/orderService";
+import db from "../../../src/db/connection";
 
-vi.mock("../db/connection");
+vi.mock("../../../src/db/connection");
 
 const orderService = new OrderService();
 
@@ -26,6 +26,7 @@ describe("OrderService", () => {
         vi.clearAllMocks();
     });
 
+    // Should insert a new order and return its id
     it("saveOrder inserts and returns id", async () => {
         (db.one as any).mockResolvedValue({ id: "abc123" });
         const result = await orderService.saveOrder(sampleOrder as any);
@@ -33,6 +34,7 @@ describe("OrderService", () => {
         expect(result).toEqual({ id: "abc123" });
     });
 
+    // Should throw a friendly error if db.one fails
     it("saveOrder throws on db error", async () => {
         (db.one as any).mockRejectedValue(new Error("fail"));
         await expect(
@@ -40,6 +42,7 @@ describe("OrderService", () => {
         ).rejects.toThrow("Failed to save order.");
     });
 
+    // Should update the Printify order ID and return the updated id
     it("updatePrintifyOrderId updates and returns id", async () => {
         (db.one as any).mockResolvedValue({ id: "def456" });
         const result = await orderService.updatePrintifyOrderId(
@@ -50,6 +53,7 @@ describe("OrderService", () => {
         expect(result).toBe("def456");
     });
 
+    // Should throw a friendly error if db.one fails during update
     it("updatePrintifyOrderId throws on db error", async () => {
         (db.one as any).mockRejectedValue(new Error("fail"));
         await expect(
@@ -57,6 +61,7 @@ describe("OrderService", () => {
         ).rejects.toThrow("Failed to update Printify order ID.");
     });
 
+    // Should return the order for a given order number and email
     it("getOrderByCustomer returns order", async () => {
         (db.oneOrNone as any).mockResolvedValue({
             store_id: "store1",
@@ -73,6 +78,7 @@ describe("OrderService", () => {
         });
     });
 
+    // Should throw a friendly error if db.oneOrNone fails
     it("getOrderByCustomer throws on db error", async () => {
         (db.oneOrNone as any).mockRejectedValue(new Error("fail"));
         await expect(

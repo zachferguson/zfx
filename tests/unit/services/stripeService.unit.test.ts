@@ -23,7 +23,7 @@ vi.mock("stripe", () => ({
  */
 async function loadStripeService() {
     vi.resetModules();
-    const mod = await import("./stripeService");
+    const mod = await import("../../../src/services/stripeService");
     return mod;
 }
 
@@ -37,6 +37,7 @@ beforeEach(() => {
 
 describe("stripeService", () => {
     describe("getStripeClient", () => {
+        // Should return a Stripe client using the mapped secret key
         it("returns a Stripe client using the mapped secret key", async () => {
             // Arrange env before import (stripeKeys is computed on import)
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_test_123";
@@ -54,6 +55,7 @@ describe("stripeService", () => {
             expect(client).toBe(h.stripeInstance);
         });
 
+        // Should throw if no secret key exists for the store
         it("throws when no secret key exists for the store", async () => {
             // No env key set
             delete process.env.STRIPE_SECRET_DEVELOPERHORIZON;
@@ -67,6 +69,7 @@ describe("stripeService", () => {
     });
 
     describe("createPaymentIntent", () => {
+        // Should create a payment intent and return the client_secret
         it("creates a payment intent and returns client_secret", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_live_abc";
             const { createPaymentIntent } = await loadStripeService();
@@ -100,6 +103,7 @@ describe("stripeService", () => {
             expect(secret).toBe("pi_secret_123");
         });
 
+        // Should propagate errors from Stripe when creating a payment intent
         it("bubbles errors from Stripe", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_x";
             const { createPaymentIntent } = await loadStripeService();

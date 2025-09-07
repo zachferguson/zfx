@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { sendOrderConfirmation, OrderEmailSummary } from "./emailService";
-import { STORE_EMAILS } from "../config/storeEmails";
+import {
+    sendOrderConfirmation,
+    OrderEmailSummary,
+} from "../../../src/services/emailService";
+import { STORE_EMAILS } from "../../../src/config/storeEmails";
 import nodemailer from "nodemailer";
 
 describe("sendOrderConfirmation", () => {
@@ -38,6 +41,7 @@ describe("sendOrderConfirmation", () => {
         vi.clearAllMocks();
     });
 
+    // Should return an error if the email config is missing for the store
     it("returns error if email config is missing", async () => {
         const result = await sendOrderConfirmation(
             "badStore",
@@ -49,8 +53,8 @@ describe("sendOrderConfirmation", () => {
         expect(result.error).toMatch(/Email configuration missing/);
     });
 
+    // Should send an email and return success if all config is present
     it("sends email and returns success", async () => {
-        // Patch STORE_EMAILS for test
         STORE_EMAILS["testStore"] = {
             user: "test@domain.com",
             pass: "pass",
@@ -70,6 +74,7 @@ describe("sendOrderConfirmation", () => {
         expect(result.messageId).toBe("abc123");
     });
 
+    // Should return an error if sendMail throws
     it("returns error if sendMail throws", async () => {
         STORE_EMAILS["failStore"] = {
             user: "fail@domain.com",

@@ -43,6 +43,7 @@
         "@vitest/coverage-v8": "^2.1.9",
         "cross-env": "^7.0.3",
         "nodemon": "^3.1.9",
+        "pg-mem": "^3.0.5",
         "supertest": "^7.1.4",
         "ts-node-dev": "^2.0.0",
         "typescript": "^5.7.3",

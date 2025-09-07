@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 
 // --- Mocks ---
-vi.mock("../db/connection", () => ({
+vi.mock("../../../src/db/connection", () => ({
     default: {
         one: vi.fn(),
         oneOrNone: vi.fn(),
@@ -27,12 +27,15 @@ vi.mock("jsonwebtoken", () => {
 });
 
 // Import after mocks
-import db from "../db/connection";
+import db from "../../../src/db/connection";
 import * as Bcrypt from "bcryptjs";
 import * as JWT from "jsonwebtoken";
 const bcrypt = vi.mocked(Bcrypt as any);
 const jwt = vi.mocked(JWT as any);
-import { registerUser, authenticateUser } from "./authenticationService";
+import {
+    registerUser,
+    authenticateUser,
+} from "../../../src/services/authenticationService";
 
 // tiny helper for TS to use mock.* safely
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
@@ -52,6 +55,7 @@ describe("authenticationService", () => {
     // ---------------------------
     // registerUser
     // ---------------------------
+    // Should hash the password with configured rounds and insert the user
     it("registerUser -> hashes password with configured rounds and inserts user", async () => {
         process.env.BCRYPT_SALT_ROUNDS = "12";
 
@@ -89,6 +93,7 @@ describe("authenticationService", () => {
         });
     });
 
+    // Should default salt rounds to 10 when env is missing
     it("registerUser -> defaults salt rounds to 10 when env missing", async () => {
         delete process.env.BCRYPT_SALT_ROUNDS;
         asMock(bcrypt.hash).mockResolvedValue("hpw");
@@ -105,6 +110,7 @@ describe("authenticationService", () => {
         expect(bcrypt.hash).toHaveBeenCalledWith("pw", 10);
     });
 
+    // Should throw a friendly error on unique violation (23505)
     it("registerUser -> throws friendly error on unique violation (23505)", async () => {
         asMock(bcrypt.hash).mockResolvedValue("hpw");
         asMock(db.one).mockRejectedValue({ code: "23505" });
@@ -114,6 +120,7 @@ describe("authenticationService", () => {
         ).rejects.toThrow("Username or email already exists for this site.");
     });
 
+    // Should rethrow other db errors
     it("registerUser -> rethrows other db errors", async () => {
         asMock(bcrypt.hash).mockResolvedValue("hpw");
         asMock(db.one).mockRejectedValue(new Error("db-down"));
