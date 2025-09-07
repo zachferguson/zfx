@@ -96,6 +96,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
+            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
             vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
                 randomUUID: () => "uuid-1",
             });
@@ -205,6 +206,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
+            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
             vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
                 randomUUID: () => "uuid-1",
             });

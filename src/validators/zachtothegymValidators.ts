@@ -3,7 +3,7 @@ import { ZACHTOTHEGYM_ERRORS } from "../config/zachtothegymErrors";
 
 /**
  * Validation chain for getting a single blog by ID.
- * Expects a positive integer 'id' param. Throws INVALID_BLOG_ID if invalid.
+ * Expects a positive integer 'id' param. Returns validation error INVALID_BLOG_ID if invalid.
  */
 export const validateGetSingleBlogById = [
     param("id")
@@ -13,7 +13,7 @@ export const validateGetSingleBlogById = [
 
 /**
  * Validation chain for creating a new blog.
- * Expects non-empty 'title' and 'content' fields in the body. Throws MISSING_BLOG_FIELDS if missing.
+ * Expects non-empty 'title' and 'content' fields in the body. Returns validation error MISSING_BLOG_FIELDS if missing.
  */
 export const validateCreateNewBlog = [
     body("title")
@@ -26,7 +26,7 @@ export const validateCreateNewBlog = [
 
 /**
  * Validation chain for getting a single article by ID.
- * Expects a positive integer 'id' param. Throws INVALID_ARTICLE_ID if invalid.
+ * Expects a positive integer 'id' param. Returns validation error INVALID_ARTICLE_ID if invalid.
  */
 export const validateGetSingleArticleById = [
     param("id")
@@ -36,7 +36,7 @@ export const validateGetSingleArticleById = [
 
 /**
  * Validation chain for creating a new article.
- * Expects non-empty 'title', 'summary', 'content', and 'categories' fields in the body. Throws MISSING_ARTICLE_FIELDS if missing.
+ * Expects non-empty 'title', 'summary', 'content', and 'categories' fields in the body. Returns validation error MISSING_ARTICLE_FIELDS if missing.
  */
 export const validateCreateNewArticle = [
     body("title")
@@ -55,7 +55,7 @@ export const validateCreateNewArticle = [
 
 /**
  * Validation chain for adding daily metrics.
- * Expects non-empty 'date' field in the body. Throws MISSING_METRICS_DATE if missing.
+ * Expects non-empty 'date' field in the body. Returns validation error MISSING_METRICS_DATE if missing.
  */
 export const validateAddDailyMetrics = [
     body("date")
@@ -65,7 +65,7 @@ export const validateAddDailyMetrics = [
 
 /**
  * Validation chain for getting daily metrics in a date range.
- * Expects non-empty 'start' and 'end' query params. Throws MISSING_METRICS_RANGE if missing.
+ * Expects non-empty 'start' and 'end' query params. Returns validation error MISSING_METRICS_RANGE if missing.
  */
 export const validateGetDailyMetrics = [
     query("start")
