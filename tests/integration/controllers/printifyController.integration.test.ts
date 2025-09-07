@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import express from "express";
 import request from "supertest";
-import * as EmailSvc from "../services/emailService";
-const emailSvc = vi.mocked(EmailSvc);
+import express from "express";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-/**
- * Predeclare mock instances (hoisted).
- */
+// Hoisted mocks and globals (from original test setup)
 const h = vi.hoisted(() => ({
     printify: {
         getProducts: vi.fn(),
@@ -21,49 +17,40 @@ const h = vi.hoisted(() => ({
     },
 }));
 
-// Hoisted global webcrypto stub (this is what the controller uses)
 const g = vi.hoisted(() => ({
     webcrypto: { randomUUID: vi.fn() },
 }));
 
-/**
- * Mock services that the controller instantiates/uses.
- */
-vi.mock("../services/printifyService", () => ({
+vi.mock("../../../src/services/printifyService", () => ({
     PrintifyService: vi.fn().mockImplementation(() => h.printify),
 }));
 
-vi.mock("../services/orderService", () => ({
+vi.mock("../../../src/services/orderService", () => ({
     OrderService: vi.fn().mockImplementation(() => h.order),
 }));
 
-vi.mock("../services/emailService", () => ({
+import * as EmailSvc from "../../../src/services/emailService";
+const emailSvc = vi.mocked(EmailSvc);
+
+vi.mock("../../../src/services/emailService", () => ({
     sendOrderConfirmation: vi.fn(),
 }));
 
-/**
- * IMPORTANT: stub the *global* crypto before importing the controller,
- * so the controller picks up our stub.
- */
 vi.stubGlobal("crypto", g.webcrypto as unknown as Crypto);
-
-// Import AFTER mocks so controller uses mocked classes/functions
-import {
-    getProducts,
-    getShippingOptions,
-    submitOrder,
-    getOrderStatus,
-} from "./printifyController";
-
-// Pull the mocked email fn to assert calls later
-import { sendOrderConfirmation } from "../services/emailService";
 
 import {
     validateGetProducts,
     validateGetShippingOptions,
     validateSubmitOrder,
     validateGetOrderStatus,
-} from "./printifyController";
+} from "../../../src/validators/printifyValidators";
+import { PRINTIFY_ERRORS } from "../../../src/config/printifyErrors";
+import {
+    getProducts,
+    getShippingOptions,
+    submitOrder,
+    getOrderStatus,
+} from "../../../src/controllers/printifyController";
 
 function makeApp() {
     const app = express();
@@ -93,7 +80,7 @@ afterEach(() => {
 it("GET /products -> 400 when store id missing", async () => {
     const res = await request(app).get("/products");
     expect(res.status).toBe(400);
-    expect(res.body.errors).toContain("Store ID is required.");
+    expect(res.body.errors).toContain(PRINTIFY_ERRORS.MISSING_STORE_ID);
     expect(h.printify.getProducts).not.toHaveBeenCalled();
 });
 
@@ -123,7 +110,7 @@ it("GET /products/:id -> 500 on service error", async () => {
 it("POST /shipping/:id -> 400 when required fields missing", async () => {
     const res = await request(app).post("/shipping/1").send({});
     expect(res.status).toBe(400);
-    expect(res.body.errors).toContain("Missing required fields.");
+    expect(res.body.errors).toContain(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS);
     expect(h.printify.getShippingRates).not.toHaveBeenCalled();
 });
 
@@ -163,9 +150,7 @@ it("POST /shipping/:id -> 500 on service error", async () => {
 it("POST /orders -> 400 when required fields missing", async () => {
     const res = await request(app).post("/orders").send({});
     expect(res.status).toBe(400);
-    expect(res.body.errors).toContain(
-        "Missing storeId, order details, or stripe_payment_id."
-    );
+    expect(res.body.errors).toContain(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS);
     expect(h.order.saveOrder).not.toHaveBeenCalled();
 });
 
@@ -254,7 +239,7 @@ it("POST /orders -> 201 happy path", async () => {
 
     expect(h.order.updatePrintifyOrderId).toHaveBeenCalledWith(UUID, "po-99");
 
-    expect(sendOrderConfirmation).toHaveBeenCalledWith(
+    expect(EmailSvc.sendOrderConfirmation).toHaveBeenCalledWith(
         "store-1",
         "a@b.com",
         UUID,
@@ -315,7 +300,9 @@ it("POST /orders -> 500 when saveOrder throws", async () => {
 it("POST /order-status -> 400 when missing orderId/email", async () => {
     const res = await request(app).post("/order-status").send({ orderId: "a" });
     expect(res.status).toBe(400);
-    expect(res.body.errors).toContain("Missing orderId or email.");
+    expect(res.body.errors).toContain(
+        PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS
+    );
 });
 
 it("POST /order-status -> 404 when order not found", async () => {

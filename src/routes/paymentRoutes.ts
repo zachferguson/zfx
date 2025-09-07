@@ -1,28 +1,24 @@
-import express, { Request, Response, NextFunction } from "express";
-import { body, validationResult } from "express-validator";
+import express from "express";
 import { handleCreatePaymentIntent } from "../controllers/paymentController";
-import { CreatePaymentIntentRequest } from "../types/createPaymentIntentRequest";
+import { validateCreatePaymentIntent } from "../validators/paymentValidators";
 
+/**
+ * Payment routes for Stripe payment intent creation.
+ *
+ * @module routes/paymentRoutes
+ */
 const router = express.Router();
 
+/**
+ * Creates a Stripe payment intent for the given store, amount, and currency.
+ *
+ * @route POST /create-payment-intent
+ * @returns {Promise<void>} Sends response via res object.
+ * @note On success, responds with 200 and the client secret. On error, responds with 400 (validation) or 500 (server error).
+ */
 router.post(
     "/create-payment-intent",
-    [
-        body("storeId").notEmpty().withMessage("Missing storeId"),
-        body("amount").notEmpty().withMessage("Missing amount"),
-        body("currency").notEmpty().withMessage("Missing currency"),
-    ],
-    (
-        req: Request<any, any, CreatePaymentIntentRequest>,
-        res: Response,
-        next: NextFunction
-    ) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ error: errors.array()[0].msg });
-        }
-        next();
-    },
+    validateCreatePaymentIntent,
     handleCreatePaymentIntent
 );
 

@@ -1,14 +1,11 @@
-// src/controllers/zachtothegymController.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 
-// import services as *modules* so we can spy on their exports
-import * as BlogsSvc from "../services/blogsService";
-import * as ArticlesSvc from "../services/articlesService";
-import * as MetricsSvc from "../services/metricsService";
+import * as BlogsSvc from "../../../src/services/blogsService";
+import * as ArticlesSvc from "../../../src/services/articlesService";
+import * as MetricsSvc from "../../../src/services/metricsService";
 
-// import the handlers under test
 import {
     getBlogs,
     getSingleBlogById,
@@ -18,15 +15,17 @@ import {
     createNewArticle,
     addDailyMetrics,
     getDailyMetrics,
+} from "../../../src/controllers/zachtothegymController";
+import {
     validateGetSingleBlogById,
     validateCreateNewBlog,
     validateGetSingleArticleById,
     validateCreateNewArticle,
     validateAddDailyMetrics,
     validateGetDailyMetrics,
-} from "./zachtothegymController";
+} from "../../../src/validators/zachtothegymValidators";
 
-function buildApp() {
+function makeApp() {
     const app = express();
     app.use(express.json());
 
@@ -48,12 +47,12 @@ function buildApp() {
     return app;
 }
 
-describe("zachtothegym controller", () => {
+describe("zachtothegym controller integration", () => {
     let app: express.Express;
 
     beforeEach(() => {
-        app = buildApp();
-        vi.restoreAllMocks(); // reset spies between tests
+        app = makeApp();
+        vi.restoreAllMocks();
     });
 
     // ---- Blogs ----

@@ -1,18 +1,17 @@
 import { Request, Response } from "express";
 import { PRINTIFY_ERRORS } from "../config/printifyErrors";
-import { body, param, validationResult } from "express-validator";
+import { validationResult } from "express-validator";
 import { PrintifyService } from "../services/printifyService";
 import { ShippingRatesRequestBody } from "../types/printifyShipping";
 import { PrintifyOrderRequest } from "../types/printifyOrder";
 import { OrderService } from "../services/orderService";
 import { sendOrderConfirmation } from "../services/emailService";
 
-const printifyService = new PrintifyService(process.env.PRINTIFY_API_KEY || "");
+export const printifyService = new PrintifyService(
+    process.env.PRINTIFY_API_KEY || ""
+);
 const orderService = new OrderService();
 
-export const validateGetProducts = [
-    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
-];
 /**
  * Gets all Printify products for a given store.
  *
@@ -42,15 +41,6 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetShippingOptions = [
-    param("id").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_STORE_ID),
-    body("address_to")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
-    body("line_items")
-        .isArray({ min: 1 })
-        .withMessage(PRINTIFY_ERRORS.MISSING_SHIPPING_FIELDS),
-];
 /**
  * Gets Printify shipping options for a given store and order details.
  *
@@ -84,15 +74,6 @@ export const getShippingOptions = async (req: Request, res: Response) => {
     }
 };
 
-export const validateSubmitOrder = [
-    body("storeId")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
-    body("order").notEmpty().withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
-    body("stripe_payment_id")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_FIELDS),
-];
 /**
  * Submits a new order to Printify and saves it in the database.
  *
@@ -182,14 +163,6 @@ export const submitOrder = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetOrderStatus = [
-    body("orderId")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
-    body("email")
-        .notEmpty()
-        .withMessage(PRINTIFY_ERRORS.MISSING_ORDER_STATUS_FIELDS),
-];
 /**
  * Gets the status and details of a Printify order for a customer.
  *

@@ -1,11 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
+import { UserWithoutPassword } from "../types/user";
 
-dotenv.config();
-
-interface AuthRequest extends Request {
-    user?: any;
+export interface AuthRequest extends Request {
+    user?: UserWithoutPassword;
 }
 
 export const verifyToken = (
@@ -13,18 +11,22 @@ export const verifyToken = (
     res: Response,
     next: NextFunction
 ): void => {
-    const token = req.headers.authorization?.split(" ")[1];
-
+    const authHeader = req.headers["authorization"];
+    const token =
+        authHeader && authHeader.startsWith("Bearer ")
+            ? authHeader.split(" ")[1]
+            : null;
     if (!token) {
         res.status(401).json({ message: "Access token is missing." });
         return;
     }
-
+    const SECRET_KEY = process.env.JWT_SECRET || "default_secret";
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-        req.user = decoded; // Attach user info to request
+        const decoded = jwt.verify(token, SECRET_KEY) as UserWithoutPassword;
+        req.user = decoded;
         next();
-    } catch (err) {
+    } catch (e) {
         res.status(403).json({ message: "Invalid or expired token." });
+        return;
     }
 };

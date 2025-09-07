@@ -22,7 +22,7 @@
         /* Completeness */
         "skipLibCheck": true /* Skip type checking all .d.ts files. */,
         "outDir": "./dist",
-        "rootDir": "./src",
+        "rootDir": ".",
         "types": ["node", "vitest/globals"]
     },
     "include": ["src/**/*", "tests"],

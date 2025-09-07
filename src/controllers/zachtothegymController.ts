@@ -11,7 +11,15 @@ import {
 } from "../services/metricsService";
 import { DailyMetrics } from "../types/dailyMetrics";
 import { ZACHTOTHEGYM_ERRORS } from "../config/zachtothegymErrors";
-import { body, param, query, validationResult } from "express-validator";
+import { validationResult } from "express-validator";
+import {
+    validateGetSingleBlogById,
+    validateCreateNewBlog,
+    validateGetSingleArticleById,
+    validateCreateNewArticle,
+    validateAddDailyMetrics,
+    validateGetDailyMetrics,
+} from "../validators/zachtothegymValidators";
 
 /**
  * Gets all blogs.
@@ -33,11 +41,6 @@ export const getBlogs = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetSingleBlogById = [
-    param("id")
-        .isInt({ gt: 0 })
-        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_BLOG_ID),
-];
 /**
  * Gets a single blog by ID.
  *
@@ -68,14 +71,6 @@ export const getSingleBlogById = async (req: Request, res: Response) => {
     }
 };
 
-export const validateCreateNewBlog = [
-    body("title")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
-    body("content")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_BLOG_FIELDS),
-];
 /**
  * Creates a new blog.
  *
@@ -124,11 +119,6 @@ export const getArticles = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetSingleArticleById = [
-    param("id")
-        .isInt({ gt: 0 })
-        .withMessage(ZACHTOTHEGYM_ERRORS.INVALID_ARTICLE_ID),
-];
 /**
  * Gets a single article by ID.
  *
@@ -163,20 +153,6 @@ export const getSingleArticleById = async (req: Request, res: Response) => {
     }
 };
 
-export const validateCreateNewArticle = [
-    body("title")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_ARTICLE_FIELDS),
-    body("summary")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_ARTICLE_FIELDS),
-    body("content")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_ARTICLE_FIELDS),
-    body("categories")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_ARTICLE_FIELDS),
-];
 /**
  * Creates a new article.
  *
@@ -210,11 +186,6 @@ export const createNewArticle = async (req: Request, res: Response) => {
     }
 };
 
-export const validateAddDailyMetrics = [
-    body("date")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_DATE),
-];
 /**
  * Adds daily metrics.
  *
@@ -244,14 +215,6 @@ export const addDailyMetrics = async (req: Request, res: Response) => {
     }
 };
 
-export const validateGetDailyMetrics = [
-    query("start")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
-    query("end")
-        .notEmpty()
-        .withMessage(ZACHTOTHEGYM_ERRORS.MISSING_METRICS_RANGE),
-];
 /**
  * Gets daily metrics in a date range.
  *
