@@ -1,7 +1,12 @@
+import db from "../../../src/db/connection";
+import {
+    getAllBlogs,
+    getBlogById,
+    createBlog,
+} from "../../../src/services/blogsService";
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 
-// 1) Mock the db connection module (default export with methods used here)
-vi.mock("../db/connection", () => {
+vi.mock("../../../src/db/connection", () => {
     return {
         default: {
             any: vi.fn(),
@@ -11,11 +16,6 @@ vi.mock("../db/connection", () => {
     };
 });
 
-// 2) Import the mocked db and the service under test
-import db from "../db/connection";
-import { getAllBlogs, getBlogById, createBlog } from "./blogsService";
-
-// tiny helper so TS is happy when accessing .mock.calls & mockResolvedValue
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
 
 describe("blogsService", () => {
@@ -24,7 +24,7 @@ describe("blogsService", () => {
     });
 
     it("getAllBlogs -> returns rows from db.any", async () => {
-        asMock(db.any).mockResolvedValue([
+        asMock<Mock>(db.any).mockResolvedValue([
             {
                 id: 1,
                 title: "Hello",
@@ -38,7 +38,7 @@ describe("blogsService", () => {
         const rows = await getAllBlogs();
 
         expect(db.any).toHaveBeenCalledTimes(1);
-        const sql = asMock(db.any).mock.calls[0][0] as string;
+        const sql = asMock<Mock>(db.any).mock.calls[0][0] as string;
         expect(sql).toContain("SELECT * FROM zachtothegym.blogs");
         expect(sql).toContain("ORDER BY created_at DESC");
 
@@ -48,17 +48,17 @@ describe("blogsService", () => {
     });
 
     it("getAllBlogs -> propagates db errors", async () => {
-        asMock(db.any).mockRejectedValue(new Error("db-down"));
+        asMock<Mock>(db.any).mockRejectedValue(new Error("db-down"));
         await expect(getAllBlogs()).rejects.toThrow("db-down");
     });
 
     it("getBlogById -> passes id and returns row", async () => {
-        asMock(db.oneOrNone).mockResolvedValue({ id: 42, title: "Life" });
+        asMock<Mock>(db.oneOrNone).mockResolvedValue({ id: 42, title: "Life" });
 
         const row = await getBlogById(42);
 
         expect(db.oneOrNone).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock(db.oneOrNone).mock.calls[0];
+        const [sql, params] = asMock<Mock>(db.oneOrNone).mock.calls[0];
         expect(sql).toContain("SELECT * FROM zachtothegym.blogs WHERE id = $1");
         expect(params).toEqual([42]);
 
@@ -66,13 +66,13 @@ describe("blogsService", () => {
     });
 
     it("getBlogById -> returns null when not found", async () => {
-        asMock(db.oneOrNone).mockResolvedValue(null);
+        asMock<Mock>(db.oneOrNone).mockResolvedValue(null);
         const row = await getBlogById(999);
         expect(row).toBeNull();
     });
 
     it("createBlog -> sends parameterized INSERT and returns created row", async () => {
-        asMock(db.one).mockResolvedValue({
+        asMock<Mock>(db.one).mockResolvedValue({
             id: 7,
             title: "T",
             content: "C",
@@ -86,22 +86,19 @@ describe("blogsService", () => {
         const created = await createBlog(title, content, categories);
 
         expect(db.one).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock(db.one).mock.calls[0];
-
+        const [sql, params] = asMock<Mock>(db.one).mock.calls[0];
         expect(sql).toContain("INSERT INTO zachtothegym.blogs");
         expect(sql).toContain("(title, content, categories)");
-        expect(sql).toContain("VALUES($1, $2, $3)");
+        expect(sql).toContain("VALUES ($1, $2, $3)");
         expect(sql).toContain("RETURNING *");
-
         expect(params).toEqual([title, content, categories]);
-
         expect(created).toEqual(
             expect.objectContaining({ id: 7, title: "T", categories: ["cat"] })
         );
     });
 
     it("createBlog -> propagates db errors", async () => {
-        asMock(db.one).mockRejectedValue(new Error("insert-fail"));
+        asMock<Mock>(db.one).mockRejectedValue(new Error("insert-fail"));
         await expect(createBlog("t", "c", [])).rejects.toThrow("insert-fail");
     });
 });

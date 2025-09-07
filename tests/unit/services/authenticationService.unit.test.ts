@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 
 // --- Mocks ---
-vi.mock("../db/connection", () => ({
+vi.mock("../../../src/db/connection", () => ({
     default: {
         one: vi.fn(),
         oneOrNone: vi.fn(),
@@ -27,12 +27,15 @@ vi.mock("jsonwebtoken", () => {
 });
 
 // Import after mocks
-import db from "../db/connection";
+import db from "../../../src/db/connection";
 import * as Bcrypt from "bcryptjs";
 import * as JWT from "jsonwebtoken";
 const bcrypt = vi.mocked(Bcrypt as any);
 const jwt = vi.mocked(JWT as any);
-import { registerUser, authenticateUser } from "./authenticationService";
+import {
+    registerUser,
+    authenticateUser,
+} from "../../../src/services/authenticationService";
 
 // tiny helper for TS to use mock.* safely
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;

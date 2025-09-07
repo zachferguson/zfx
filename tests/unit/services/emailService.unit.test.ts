@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { sendOrderConfirmation, OrderEmailSummary } from "./emailService";
-import { STORE_EMAILS } from "../config/storeEmails";
+import {
+    sendOrderConfirmation,
+    OrderEmailSummary,
+} from "../../../src/services/emailService";
+import { STORE_EMAILS } from "../../../src/config/storeEmails";
 import nodemailer from "nodemailer";
 
 describe("sendOrderConfirmation", () => {
@@ -50,7 +53,6 @@ describe("sendOrderConfirmation", () => {
     });
 
     it("sends email and returns success", async () => {
-        // Patch STORE_EMAILS for test
         STORE_EMAILS["testStore"] = {
             user: "test@domain.com",
             pass: "pass",

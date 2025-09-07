@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
+import db from "../../../src/db/connection";
+import {
+    saveDailyMetrics,
+    getMetricsInRange,
+} from "../../../src/services/metricsService";
 
-// 1) Mock the db connection (default export)
-vi.mock("../db/connection", () => {
+vi.mock("../../../src/db/connection", () => {
     return {
         default: {
             any: vi.fn(),
@@ -10,14 +14,8 @@ vi.mock("../db/connection", () => {
     };
 });
 
-// 2) Import mocked db and the service under test
-import db from "../db/connection";
-import { saveDailyMetrics, getMetricsInRange } from "./metricsService";
-
-// Helper for TS when accessing mock.* APIs
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
 
-// Sample metrics payload
 const sampleMetrics = {
     date: "2025-09-01",
     weight: 180.2,
@@ -54,27 +52,19 @@ describe("metricsService", () => {
 
     it("saveDailyMetrics -> upsert with 26 placeholders in correct order", async () => {
         asMock(db.none).mockResolvedValue(undefined);
-
         await saveDailyMetrics(sampleMetrics);
-
         expect(db.none).toHaveBeenCalledTimes(1);
-
         const [sql, params] = asMock(db.none).mock.calls[0];
-
-        // SQL shape checks (not brittle)
         const norm = sql.replace(/\s+/g, " ").trim();
         expect(sql).toContain("INSERT INTO zachtothegym.daily_metrics");
         expect(norm).toContain("( date, weight, bmi, body_fat");
         expect(sql).toContain("VALUES (");
-        // placeholders $1..$26
         for (let i = 1; i <= 26; i++) {
             expect(sql).toContain(`$${i}`);
         }
         expect(sql).toContain("ON CONFLICT (date) DO UPDATE");
         expect(sql).toContain("weight = EXCLUDED.weight");
         expect(sql).toContain("carbs_grams = EXCLUDED.carbs_grams");
-
-        // Params order check
         expect(params).toEqual([
             sampleMetrics.date,
             sampleMetrics.weight,
@@ -117,17 +107,13 @@ describe("metricsService", () => {
             { date: "2025-08-31" },
             { date: "2025-09-01" },
         ]);
-
         const rows = await getMetricsInRange("2025-08-01", "2025-09-01");
-
         expect(db.any).toHaveBeenCalledTimes(1);
         const [sql, params] = asMock(db.any).mock.calls[0];
-
         expect(sql).toContain("SELECT * FROM zachtothegym.daily_metrics");
         expect(sql).toContain("WHERE date BETWEEN $1 AND $2");
         expect(sql).toContain("ORDER BY date ASC");
         expect(params).toEqual(["2025-08-01", "2025-09-01"]);
-
         expect(rows).toEqual([{ date: "2025-08-31" }, { date: "2025-09-01" }]);
     });
 

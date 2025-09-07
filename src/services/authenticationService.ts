@@ -5,6 +5,12 @@ import { User, UserWithoutPassword } from "../types/user";
 
 /**
  * Registers a new user in the authentication schema.
+ * @param {string} username - The username
+ * @param {string} password - The plain text password
+ * @param {string} email - The user's email
+ * @param {string} site - The site identifier
+ * @returns {Promise<UserWithoutPassword>} The created user (without password)
+ * @throws {Error} If the username or email already exists for this site, or on DB error
  */
 export const registerUser = async (
     username: string,
@@ -34,7 +40,11 @@ export const registerUser = async (
 };
 
 /**
- * Authenticates a user.
+ * Authenticates a user by username, password, and site.
+ * @param {string} username - The username
+ * @param {string} password - The plain text password
+ * @param {string} site - The site identifier
+ * @returns {Promise<{ token: string; user: UserWithoutPassword } | null>} The JWT and user if authenticated, otherwise null
  */
 export const authenticateUser = async (
     username: string,
@@ -64,17 +74,8 @@ export const authenticateUser = async (
             process.env.JWT_SECRET!,
             { expiresIn: "1d" }
         );
-
-        return {
-            token,
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                site: user.site,
-            },
-        };
+        const { password_hash, ...userWithoutPassword } = user;
+        return { token, user: userWithoutPassword };
     }
     return null;
 };

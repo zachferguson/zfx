@@ -10,14 +10,27 @@ import {
 
 const PRINTIFY_BASE_URL = "https://api.printify.com/v1";
 
+/**
+ * Service for interacting with the Printify API.
+ */
 export class PrintifyService {
     private apiKey: string;
 
+    /**
+     * Creates a new PrintifyService instance.
+     * @param {string} apiKey - The Printify API key.
+     */
     constructor(apiKey: string) {
         this.apiKey = apiKey;
     }
 
-    async getProducts(storeId: string) {
+    /**
+     * Retrieves all products for a given store from Printify.
+     * @param {string} storeId - The Printify store ID.
+     * @returns {Promise<any>} The products data.
+     * @throws {Error} If the request fails.
+     */
+    async getProducts(storeId: string): Promise<any> {
         try {
             const response = await axios.get(
                 `${PRINTIFY_BASE_URL}/shops/${storeId}/products.json`,
@@ -41,10 +54,17 @@ export class PrintifyService {
         }
     }
 
+    /**
+     * Retrieves shipping rates for an order from Printify.
+     * @param {string} storeId - The Printify store ID.
+     * @param {ShippingRatesRequestBody} requestBody - The shipping rates request body.
+     * @returns {Promise<ShippingResponse>} The shipping rates response.
+     * @throws {Error} If the request fails.
+     */
     async getShippingRates(
         storeId: string,
         requestBody: ShippingRatesRequestBody
-    ) {
+    ): Promise<ShippingResponse> {
         try {
             const response = await axios.post<ShippingResponse>(
                 `${PRINTIFY_BASE_URL}/shops/${storeId}/orders/shipping.json`,
@@ -75,6 +95,13 @@ export class PrintifyService {
         }
     }
 
+    /**
+     * Sends an order to production in Printify.
+     * @param {string} storeId - The Printify store ID.
+     * @param {string} orderId - The Printify order ID.
+     * @returns {Promise<void>} Resolves when the order is sent to production.
+     * @throws {Error} If the request fails.
+     */
     async sendOrderToProduction(
         storeId: string,
         orderId: string

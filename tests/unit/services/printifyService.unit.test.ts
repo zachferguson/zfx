@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 import axios from "axios";
-import { PrintifyService } from "./printifyService";
+import { PrintifyService } from "../../../src/services/printifyService";
 
 vi.mock("axios", () => ({
     default: {
@@ -11,8 +11,6 @@ vi.mock("axios", () => ({
 
 const ax = vi.mocked(axios);
 const svc = new PrintifyService("api-key-123");
-
-// Cast ax.get and ax.post to Mock for proper typing
 const axGet = ax.get as unknown as Mock;
 const axPost = ax.post as unknown as Mock;
 
@@ -23,12 +21,9 @@ beforeEach(() => {
 describe("PrintifyService.getProducts", () => {
     it("returns data and sends auth header", async () => {
         axGet.mockResolvedValue({ data: [{ id: "p1" }] });
-
         const data = await svc.getProducts("store-1");
-
         expect(data).toEqual([{ id: "p1" }]);
         expect(axGet).toHaveBeenCalledTimes(1);
-
         const [url, cfg] = axGet.mock.calls[0];
         expect(url).toContain("/shops/store-1/products.json");
         expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
@@ -39,7 +34,6 @@ describe("PrintifyService.getProducts", () => {
             response: { data: { message: "bad things" } },
             message: "boom",
         });
-
         await expect(svc.getProducts("store-1")).rejects.toThrow(
             "Failed to fetch products from Printify: bad things"
         );
@@ -47,7 +41,6 @@ describe("PrintifyService.getProducts", () => {
 
     it("throws friendly error with Unknown error when no server message", async () => {
         axGet.mockRejectedValue({ message: "network-down" });
-
         await expect(svc.getProducts("store-1")).rejects.toThrow(
             "Failed to fetch products from Printify: Unknown error"
         );
@@ -63,18 +56,14 @@ describe("PrintifyService.getShippingRates", () => {
                 ],
             },
         });
-
         const body = {
             address_to: { country: "US", zip: "10001" },
             line_items: [{ product_id: 1, variant_id: 2, quantity: 1 }],
         };
-
         const res = await svc.getShippingRates("store-9", body as any);
-
         expect(res).toEqual({
             standard: [{ id: 1, name: "Std", price: 499, countries: ["US"] }],
         });
-
         const [url, payload, cfg] = axPost.mock.calls[0];
         expect(url).toContain("/shops/store-9/orders/shipping.json");
         expect(payload).toEqual(body);
@@ -84,12 +73,10 @@ describe("PrintifyService.getShippingRates", () => {
 
     it("normalizes numeric 'standard' to array", async () => {
         axPost.mockResolvedValue({ data: { standard: 123 } });
-
         const res = await svc.getShippingRates("s", {
             address_to: { country: "US", zip: "10001" },
             line_items: [{ product_id: 1, variant_id: 2, quantity: 1 }],
         } as any);
-
         expect(res.standard).toEqual([
             {
                 id: 123,
@@ -114,9 +101,7 @@ describe("PrintifyService.getShippingRates", () => {
 describe("PrintifyService.sendOrderToProduction", () => {
     it("calls axios.post with empty body and headers", async () => {
         axPost.mockResolvedValue({ data: { ok: true } });
-
         await svc.sendOrderToProduction("store-1", "ord-9");
-
         const [url, payload, cfg] = axPost.mock.calls[0];
         expect(url).toContain(
             "/shops/store-1/orders/ord-9/send_to_production.json"
@@ -131,7 +116,6 @@ describe("PrintifyService.sendOrderToProduction", () => {
             response: { data: { message: "cannot send" } },
             message: "boom",
         });
-
         await expect(
             svc.sendOrderToProduction("store-1", "ord-9")
         ).rejects.toThrow("Failed to send order to production: cannot send");
@@ -139,7 +123,6 @@ describe("PrintifyService.sendOrderToProduction", () => {
 
     it("throws Unknown error fallback", async () => {
         axPost.mockRejectedValue({ message: "bad" });
-
         await expect(
             svc.sendOrderToProduction("store-1", "ord-9")
         ).rejects.toThrow("Failed to send order to production: Unknown error");
@@ -149,7 +132,6 @@ describe("PrintifyService.sendOrderToProduction", () => {
 describe("PrintifyService.submitOrder", () => {
     it("formats payload, sends headers, and returns data", async () => {
         axPost.mockResolvedValue({ data: { id: "po-1" } });
-
         const orderReq = {
             total_price: 2000,
             currency: "USD",
@@ -184,17 +166,12 @@ describe("PrintifyService.submitOrder", () => {
                 },
             ],
         } as any;
-
         const out = await svc.submitOrder("store-1", "ext-123", orderReq);
-
         expect(out).toEqual({ id: "po-1" });
         const [url, payload, cfg] = axPost.mock.calls[0];
-
         expect(url).toContain("/shops/store-1/orders.json");
         expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
         expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
-
-        // Verify formatted payload structure
         expect(payload).toEqual(
             expect.objectContaining({
                 external_id: "ext-123",
@@ -222,7 +199,6 @@ describe("PrintifyService.submitOrder", () => {
 
     it("fills default phone/region/address2 when missing", async () => {
         axPost.mockResolvedValue({ data: { id: "po-2" } });
-
         const orderReq = {
             total_price: 1234,
             currency: "USD",
@@ -244,13 +220,11 @@ describe("PrintifyService.submitOrder", () => {
             },
             line_items: [],
         } as any;
-
         await svc.submitOrder("store-2", "ext-9", orderReq);
-
         const [_url, payload] = axPost.mock.calls[0];
         expect(payload.address_to.phone).toBe("000-000-0000");
-        expect(payload.address_to.region).toBe(""); // defaulted
-        expect(payload.address_to.address2).toBe(""); // defaulted
+        expect(payload.address_to.region).toBe("");
+        expect(payload.address_to.address2).toBe("");
     });
 
     it("throws friendly error with server message", async () => {
@@ -259,8 +233,6 @@ describe("PrintifyService.submitOrder", () => {
             response: { data: { message: "rate limited" } },
         });
         axPost.mockRejectedValue(error);
-
-        // Provide minimal valid orderData so the code reaches axios.post
         const orderData = {
             customer: {
                 email: "test@example.com",
@@ -282,7 +254,6 @@ describe("PrintifyService.submitOrder", () => {
             shipping_method: "STANDARD",
             shipping_cost: 100,
         };
-
         await expect(
             svc.submitOrder("store-1", "ext-1", orderData as any)
         ).rejects.toThrow("Failed to submit order to Printify: rate limited");
@@ -290,7 +261,6 @@ describe("PrintifyService.submitOrder", () => {
 
     it("throws Unknown error fallback", async () => {
         axPost.mockRejectedValue({ message: "boom" });
-
         await expect(
             svc.submitOrder("store-1", "ext-1", {} as any)
         ).rejects.toThrow("Failed to submit order to Printify: Unknown error");
@@ -302,11 +272,8 @@ describe("PrintifyService.getOrder", () => {
         axGet.mockResolvedValue({
             data: { id: "po-77", status: "in_production" },
         });
-
         const out = await svc.getOrder("store-1", "po-77");
-
         expect(out).toEqual({ id: "po-77", status: "in_production" });
-
         const [url, cfg] = axGet.mock.calls[0];
         expect(url).toContain("/shops/store-1/orders/po-77.json");
         expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");

@@ -1,6 +1,11 @@
 import db from "../db/connection";
 import { DailyMetrics } from "../types/dailyMetrics";
 
+/**
+ * Saves or updates daily metrics for a given date. Performs an upsert operation.
+ * @param {DailyMetrics} metrics - The daily metrics to save.
+ * @returns {Promise<void>} Resolves when the operation is complete.
+ */
 export const saveDailyMetrics = async (
     metrics: DailyMetrics
 ): Promise<void> => {
@@ -73,6 +78,12 @@ export const saveDailyMetrics = async (
     ]);
 };
 
+/**
+ * Retrieves daily metrics within a specified date range (inclusive).
+ * @param {string} startDate - The start date (YYYY-MM-DD).
+ * @param {string} endDate - The end date (YYYY-MM-DD).
+ * @returns {Promise<DailyMetrics[]>} The metrics for the given range.
+ */
 export const getMetricsInRange = async (
     startDate: string,
     endDate: string

@@ -23,7 +23,7 @@ vi.mock("stripe", () => ({
  */
 async function loadStripeService() {
     vi.resetModules();
-    const mod = await import("./stripeService");
+    const mod = await import("../../../src/services/stripeService");
     return mod;
 }
 

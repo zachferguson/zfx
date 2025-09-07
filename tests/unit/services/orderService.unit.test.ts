@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { OrderService } from "./orderService";
-import db from "../db/connection";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { OrderService } from "../../../src/services/orderService";
+import db from "../../../src/db/connection";
 
-vi.mock("../db/connection");
+vi.mock("../../../src/db/connection");
 
 const orderService = new OrderService();
 
