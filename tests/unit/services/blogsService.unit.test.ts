@@ -3,6 +3,7 @@ import {
     getAllBlogs,
     getBlogById,
     createBlog,
+    deleteBlogById,
 } from "../../../src/services/blogsService";
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 
@@ -23,6 +24,7 @@ describe("blogsService", () => {
         vi.clearAllMocks();
     });
 
+    // Should return all blogs from db.any, ordered by created_at DESC
     it("getAllBlogs -> returns rows from db.any", async () => {
         asMock<Mock>(db.any).mockResolvedValue([
             {
@@ -47,31 +49,32 @@ describe("blogsService", () => {
         ]);
     });
 
+    // Should propagate errors thrown by db.any
     it("getAllBlogs -> propagates db errors", async () => {
         asMock<Mock>(db.any).mockRejectedValue(new Error("db-down"));
         await expect(getAllBlogs()).rejects.toThrow("db-down");
     });
 
+    // Should fetch a blog by ID and return the row
     it("getBlogById -> passes id and returns row", async () => {
         asMock<Mock>(db.oneOrNone).mockResolvedValue({ id: 42, title: "Life" });
-
         const row = await getBlogById(42);
-
         expect(db.oneOrNone).toHaveBeenCalledTimes(1);
         const [sql, params] = asMock<Mock>(db.oneOrNone).mock.calls[0];
         expect(sql).toContain("SELECT * FROM zachtothegym.blogs WHERE id = $1");
         expect(params).toEqual([42]);
-
         expect(row).toEqual(expect.objectContaining({ id: 42 }));
     });
 
-    it("getBlogById -> returns null when not found", async () => {
+    // Should return null if the blog is not found
+    it("getBlogById -> returns null for missing row", async () => {
         asMock<Mock>(db.oneOrNone).mockResolvedValue(null);
         const row = await getBlogById(999);
         expect(row).toBeNull();
     });
 
-    it("createBlog -> sends parameterized INSERT and returns created row", async () => {
+    // Should return null if the blog is not found
+    it("getBlogById -> returns null for missing row", async () => {
         asMock<Mock>(db.one).mockResolvedValue({
             id: 7,
             title: "T",
@@ -97,8 +100,41 @@ describe("blogsService", () => {
         );
     });
 
+    // Should propagate errors thrown by db.one
     it("createBlog -> propagates db errors", async () => {
         asMock<Mock>(db.one).mockRejectedValue(new Error("insert-fail"));
-        await expect(createBlog("t", "c", [])).rejects.toThrow("insert-fail");
+        await expect(createBlog("T", "C", ["cat"])).rejects.toThrow(
+            "insert-fail"
+        );
+    });
+    // Should delete a blog by ID and return the deleted row
+    it("deleteBlogById -> deletes and returns the blog if found", async () => {
+        asMock<Mock>(db.oneOrNone).mockResolvedValue({
+            id: 5,
+            title: "To Delete Blog",
+        });
+        const row = await deleteBlogById(5);
+        expect(db.oneOrNone).toHaveBeenCalledWith(
+            expect.stringContaining("DELETE FROM zachtothegym.blogs"),
+            [5]
+        );
+        expect(row).toEqual(
+            expect.objectContaining({ id: 5, title: "To Delete Blog" })
+        );
+    });
+
+    // Should return null when trying to delete a non-existent blog
+    it("deleteBlogById -> returns null if not found", async () => {
+        asMock<Mock>(db.oneOrNone).mockResolvedValue(null);
+        const row = await deleteBlogById(999);
+        expect(row).toBeNull();
+    });
+
+    // Should propagate errors thrown by db.oneOrNone
+    it("deleteBlogById -> propagates db errors", async () => {
+        asMock<Mock>(db.oneOrNone).mockRejectedValue(
+            new Error("fail-delete-blog")
+        );
+        await expect(deleteBlogById(1)).rejects.toThrow("fail-delete-blog");
     });
 });

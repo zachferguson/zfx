@@ -189,6 +189,13 @@ export const getOrderStatus = async (req: Request, res: Response) => {
             return;
         }
 
+        if (!order.printify_order_id) {
+            res.status(422).json({
+                error: PRINTIFY_ERRORS.ORDER_NOT_FOUND,
+            });
+            return;
+        }
+
         const printifyOrder = await printifyService.getOrder(
             order.store_id,
             order.printify_order_id

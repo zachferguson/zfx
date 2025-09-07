@@ -41,6 +41,7 @@ describe("sendOrderConfirmation", () => {
         vi.clearAllMocks();
     });
 
+    // Should return an error if the email config is missing for the store
     it("returns error if email config is missing", async () => {
         const result = await sendOrderConfirmation(
             "badStore",
@@ -52,6 +53,7 @@ describe("sendOrderConfirmation", () => {
         expect(result.error).toMatch(/Email configuration missing/);
     });
 
+    // Should send an email and return success if all config is present
     it("sends email and returns success", async () => {
         STORE_EMAILS["testStore"] = {
             user: "test@domain.com",
@@ -72,6 +74,7 @@ describe("sendOrderConfirmation", () => {
         expect(result.messageId).toBe("abc123");
     });
 
+    // Should return an error if sendMail throws
     it("returns error if sendMail throws", async () => {
         STORE_EMAILS["failStore"] = {
             user: "fail@domain.com",

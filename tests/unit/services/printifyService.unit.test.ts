@@ -19,6 +19,7 @@ beforeEach(() => {
 });
 
 describe("PrintifyService.getProducts", () => {
+    // Should return product data and send the correct auth header
     it("returns data and sends auth header", async () => {
         axGet.mockResolvedValue({ data: [{ id: "p1" }] });
         const data = await svc.getProducts("store-1");
@@ -29,6 +30,7 @@ describe("PrintifyService.getProducts", () => {
         expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
     });
 
+    // Should throw a friendly error with the server message when axios fails
     it("throws friendly error with server message when axios fails", async () => {
         axGet.mockRejectedValue({
             response: { data: { message: "bad things" } },
@@ -39,6 +41,7 @@ describe("PrintifyService.getProducts", () => {
         );
     });
 
+    // Should throw a friendly error with 'Unknown error' when no server message is present
     it("throws friendly error with Unknown error when no server message", async () => {
         axGet.mockRejectedValue({ message: "network-down" });
         await expect(svc.getProducts("store-1")).rejects.toThrow(
@@ -48,6 +51,7 @@ describe("PrintifyService.getProducts", () => {
 });
 
 describe("PrintifyService.getShippingRates", () => {
+    // Should pass through the array response for shipping rates
     it("passes through array response", async () => {
         axPost.mockResolvedValue({
             data: {
@@ -71,6 +75,7 @@ describe("PrintifyService.getShippingRates", () => {
         expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
     });
 
+    // Should normalize a numeric 'standard' shipping rate to an array
     it("normalizes numeric 'standard' to array", async () => {
         axPost.mockResolvedValue({ data: { standard: 123 } });
         const res = await svc.getShippingRates("s", {
@@ -87,6 +92,7 @@ describe("PrintifyService.getShippingRates", () => {
         ]);
     });
 
+    // Should throw a friendly error on axios failure for shipping rates
     it("throws friendly error on axios failure", async () => {
         axPost.mockRejectedValue(new Error("nope"));
         await expect(
@@ -99,6 +105,7 @@ describe("PrintifyService.getShippingRates", () => {
 });
 
 describe("PrintifyService.sendOrderToProduction", () => {
+    // Should call axios.post with empty body and correct headers for sendOrderToProduction
     it("calls axios.post with empty body and headers", async () => {
         axPost.mockResolvedValue({ data: { ok: true } });
         await svc.sendOrderToProduction("store-1", "ord-9");
@@ -111,6 +118,7 @@ describe("PrintifyService.sendOrderToProduction", () => {
         expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
     });
 
+    // Should throw a friendly error including the server message when present
     it("throws friendly error including server message when present", async () => {
         axPost.mockRejectedValue({
             response: { data: { message: "cannot send" } },

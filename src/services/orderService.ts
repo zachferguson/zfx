@@ -1,54 +1,33 @@
 import db from "../db/connection";
+import type { IDatabase, ITask } from "pg-promise";
+import { OrderLookup, OrderData } from "../types/order";
 
-/**
- * Represents the data required to create or update an order.
- */
-interface OrderData {
-    /** The order number. */
-    orderNumber: string;
-    /** The store identifier. */
-    storeId: string;
-    /** The customer's email address. */
-    email: string;
-    /** The total price of the order (in cents). */
-    totalPrice: number;
-    /** The currency code (e.g., 'USD'). */
-    currency: string;
-    /** The shipping method ID. */
-    shippingMethod: number;
-    /** The shipping cost (in cents). */
-    shippingCost: number;
-    /** The shipping address object. */
-    shippingAddress: object;
-    /** The items in the order. */
-    items: object;
-    /** The Stripe payment ID. */
-    stripePaymentId: string;
-    /** The payment status. */
-    paymentStatus: string;
-    /** The order status. */
-    orderStatus: string;
-}
+// Any pg-promise connection-like object: the global db or a tx/task context.
+type DbOrTx = IDatabase<unknown> | ITask<unknown>;
+const useDb = (t?: DbOrTx) => t ?? db;
 
 export class OrderService {
     /**
      * Saves a new order to the database.
-     * @param {OrderData} order - The order data to save.
-     * @returns {Promise<{ id: string }>} The ID of the newly created order.
-     * @throws {Error} If the order could not be saved.
+     * Optionally runs inside a provided transaction/task context.
+     *
+     * @param order The order data to save.
+     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
+     * @returns The ID of the newly created order.
      */
-    async saveOrder(order: OrderData): Promise<{ id: string }> {
+    async saveOrder(order: OrderData, cn?: DbOrTx): Promise<{ id: string }> {
         const query = `
-            INSERT INTO orders.printifyorders (
-                order_number, store_id, email, total_price, currency, 
-                shipping_method, shipping_cost, shipping_address, items, 
-                stripe_payment_id, payment_status, order_status
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-            ) RETURNING id;
-        `;
+      INSERT INTO orders.printifyorders (
+        order_number, store_id, email, total_price, currency,
+        shipping_method, shipping_cost, shipping_address, items,
+        stripe_payment_id, payment_status, order_status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+      ) RETURNING id;
+    `;
+
         try {
-            return await db.one(query, [
+            return await useDb(cn).one(query, [
                 order.orderNumber,
                 order.storeId,
                 order.email,
@@ -63,6 +42,8 @@ export class OrderService {
                 order.orderStatus,
             ]);
         } catch (err) {
+            // Keep logging minimal in services; tests can assert thrown errors.
+            // eslint-disable-next-line no-console
             console.error("Error saving order:", err);
             throw new Error("Failed to save order.");
         }
@@ -70,25 +51,33 @@ export class OrderService {
 
     /**
      * Updates the Printify order ID for a given order number.
-     * @param {string} orderNumber - The order number to update.
-     * @param {string} printifyOrderId - The Printify order ID to set.
-     * @returns {Promise<string>} The ID of the updated order.
-     * @throws {Error} If the update fails.
+     * Optionally runs inside a provided transaction/task context.
+     *
+     * @param orderNumber The order number to update.
+     * @param printifyOrderId The Printify order ID to set.
+     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
+     * @returns The ID of the updated order.
      */
     async updatePrintifyOrderId(
         orderNumber: string,
-        printifyOrderId: string
+        printifyOrderId: string,
+        cn?: DbOrTx
     ): Promise<string> {
         const query = `
-            UPDATE orders.printifyorders 
-            SET printify_order_id = $1 
-            WHERE order_number = $2
-            RETURNING id;
-        `;
+      UPDATE orders.printifyorders
+      SET printify_order_id = $1
+      WHERE order_number = $2
+      RETURNING id;
+    `;
+
         try {
-            const { id } = await db.one(query, [printifyOrderId, orderNumber]);
+            const { id } = await useDb(cn).one(query, [
+                printifyOrderId,
+                orderNumber,
+            ]);
             return id;
         } catch (err) {
+            // eslint-disable-next-line no-console
             console.error("Error updating Printify order ID:", err);
             throw new Error("Failed to update Printify order ID.");
         }
@@ -96,19 +85,25 @@ export class OrderService {
 
     /**
      * Retrieves an order by order number and customer email.
-     * @param {string} orderId - The order number to look up.
-     * @param {string} email - The customer's email address.
-     * @returns {Promise<any>} The order data, or null if not found.
-     * @throws {Error} If the retrieval fails.
+     * Optionally runs inside a provided transaction/task context.
+     *
+     * @param orderId The order number to look up.
+     * @param email The customer's email address.
+     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
+     * @returns curated order row (subset) data as OrderLookup or null if not found.
      */
-    async getOrderByCustomer(orderId: string, email: string): Promise<any> {
-        const query = `
-            SELECT store_id, printify_order_id 
-            FROM orders.printifyorders 
-            WHERE order_number = $1 AND email = $2;
+    async getOrderByCustomer(
+        orderId: string,
+        email: string,
+        cn?: DbOrTx
+    ): Promise<OrderLookup | null> {
+        const q = `
+            SELECT store_id, printify_order_id, total_price, shipping_cost, currency
+            FROM orders.printifyorders
+            WHERE order_number = $1 AND email = $2
         `;
         try {
-            return await db.oneOrNone(query, [orderId, email]);
+            return await useDb(cn).oneOrNone<OrderLookup>(q, [orderId, email]);
         } catch (err) {
             console.error("Error retrieving order:", err);
             throw new Error("Failed to retrieve order.");

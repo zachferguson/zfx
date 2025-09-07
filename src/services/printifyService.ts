@@ -3,7 +3,7 @@ import {
     ShippingRatesRequestBody,
     ShippingResponse,
 } from "../types/printifyShipping";
-import {
+import type {
     PrintifyOrderRequest,
     PrintifyOrderResponse,
 } from "../types/printifyOrder";

@@ -186,19 +186,19 @@ export const sendOrderConfirmation = async (
         subject: `${emailConfig.storeName} Order Confirmation - ${orderId}`,
         text: `Thank you for your order!
 
-Your order ID is ${orderId}.
+        Your order ID is ${orderId}.
 
-Track your order: ${url.toString()}
+        Track your order: ${url.toString()}
 
-Shipping To:
-${textAddress}
+        Shipping To:
+        ${textAddress}
 
-Items:
-${textItems}
+        Items:
+        ${textItems}
 
-Shipping Method: ${shippingLabel}
-Order Total: ${totalFormatted}
-`,
+        Shipping Method: ${shippingLabel}
+        Order Total: ${totalFormatted}
+        `,
         html: `
       <h2>Thank you for your order!</h2>
       <p>Your order ID is <strong>${escapeHtml(orderId)}</strong>.</p>

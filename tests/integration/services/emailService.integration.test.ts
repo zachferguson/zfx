@@ -1,11 +1,12 @@
 // Integration tests for emailService
 // TODO: Set up integration tests with a real or test SMTP server if needed
 // These are placeholders for future implementation
-import { describe, it, expect } from "vitest";
+import { describe, it } from "vitest";
 
-describe("emailService integration", () => {
-    it("should send a real email [TODO]", () => {
-        // TODO: Implement integration test with real SMTP
-        expect(true).toBe(true);
+// Placeholder: Integration tests for emailService require a real or test SMTP server.
+// To implement: Set up a test SMTP server and verify real email sending.
+describe.skip("emailService integration (placeholder)", () => {
+    it("should send a real email [not yet implemented]", () => {
+        // Not implemented: requires test SMTP server setup.
     });
 });

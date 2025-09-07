@@ -39,12 +39,16 @@ if (!API_KEY || !STORE_ID) {
     describe("PrintifyService Integration", () => {
         const svc = new PrintifyService(API_KEY);
 
-        it("getProducts returns products for store", async () => {
-            const products = await svc.getProducts(STORE_ID);
-            expect(
-                Array.isArray(products.data) || Array.isArray(products)
-            ).toBe(true);
-        });
+        it(
+            "getProducts returns products for store",
+            async () => {
+                const products = await svc.getProducts(STORE_ID);
+                expect(
+                    Array.isArray(products.data) || Array.isArray(products)
+                ).toBe(true);
+            },
+            { retry: 2 }
+        );
 
         it("getOrder fetches a real order", async () => {
             if (!ORDER_ID) {
