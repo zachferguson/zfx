@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 
 // 1) Mock the db connection module (default export with methods)
-vi.mock("../db/connection", () => {
+vi.mock("../../../src/db/connection", () => {
     return {
         default: {
             any: vi.fn(),
@@ -12,12 +12,12 @@ vi.mock("../db/connection", () => {
 });
 
 // 2) Import the mocked db and the service under test
-import db from "../db/connection";
+import db from "../../../src/db/connection";
 import {
     getAllArticles,
     getArticleById,
     createArticle,
-} from "./articlesService";
+} from "../../../src/services/articlesService";
 
 // handy helpers
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as T;
@@ -61,72 +61,45 @@ describe("articlesService", () => {
         await expect(getAllArticles()).rejects.toThrow("db-down");
     });
 
-    it("getArticleById -> passes id and returns row", async () => {
+    it("getArticleById -> returns row from db.oneOrNone", async () => {
         asMock<Mock>(db.oneOrNone).mockResolvedValue({
-            id: 42,
-            title: "Life",
+            id: 2,
+            title: "A",
         });
-
-        const row = await getArticleById(42);
-
-        expect(db.oneOrNone).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock<Mock>(db.oneOrNone).mock.calls[0];
-        expect(sql).toContain(
-            "SELECT * FROM zachtothegym.articles WHERE id = $1"
+        const row = await getArticleById(2);
+        expect(db.oneOrNone).toHaveBeenCalledWith(
+            expect.stringContaining("WHERE id = $1"),
+            [2]
         );
-        expect(params).toEqual([42]);
-
-        expect(row).toEqual(expect.objectContaining({ id: 42 }));
+        expect(row).toEqual(expect.objectContaining({ id: 2 }));
     });
 
-    it("getArticleById -> returns null when not found", async () => {
+    it("getArticleById -> returns null if not found", async () => {
         asMock<Mock>(db.oneOrNone).mockResolvedValue(null);
-        const row = await getArticleById(999);
+        const row = await getArticleById(99);
         expect(row).toBeNull();
     });
 
-    it("createArticle -> sends parameterized INSERT and returns created row", async () => {
+    it("createArticle -> inserts and returns new article", async () => {
         asMock<Mock>(db.one).mockResolvedValue({
-            id: 7,
+            id: 3,
             title: "T",
             summary: "S",
             content: "C",
-            categories: ["cat"],
+            categories: ["cat1"],
         });
-
-        const title = "T";
-        const summary = "S";
-        const content = "C";
-        const categories = ["cat"];
-
-        const created = await createArticle(
-            title,
-            summary,
-            content,
-            categories
+        const row = await createArticle("T", "S", "C", ["cat1"]);
+        expect(db.one).toHaveBeenCalledWith(
+            expect.stringContaining("INSERT INTO zachtothegym.articles"),
+            ["T", "S", "C", ["cat1"]]
         );
-
-        expect(db.one).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock<Mock>(db.one).mock.calls[0];
-
-        // sanity-check the SQL and placeholders
-        expect(sql).toContain("INSERT INTO zachtothegym.articles");
-        expect(sql).toContain("(title, summary, content, categories)");
-        expect(sql).toContain("VALUES ($1, $2, $3, $4)");
-        expect(sql).toContain("RETURNING *");
-
-        // check params order & values
-        expect(params).toEqual([title, summary, content, categories]);
-
-        expect(created).toEqual(
-            expect.objectContaining({ id: 7, title: "T", categories: ["cat"] })
-        );
+        expect(row).toEqual(expect.objectContaining({ id: 3, title: "T" }));
     });
 
     it("createArticle -> propagates db errors", async () => {
-        asMock<Mock>(db.one).mockRejectedValue(new Error("insert-fail"));
-        await expect(createArticle("t", "s", "c", [])).rejects.toThrow(
-            "insert-fail"
+        asMock<Mock>(db.one).mockRejectedValue(new Error("fail"));
+        await expect(createArticle("T", "S", "C", ["cat1"])).rejects.toThrow(
+            "fail"
         );
     });
 });

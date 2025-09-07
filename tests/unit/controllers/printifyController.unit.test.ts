@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockGlobalCryptoRandomUUID } from "../../testUtils";
 import { Request, Response } from "express";
 import * as controller from "../../../src/controllers/printifyController";
 import { printifyService } from "../../../src/controllers/printifyController";
@@ -96,10 +97,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
-            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
-            vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
-                randomUUID: () => "uuid-1",
-            });
+            mockGlobalCryptoRandomUUID("uuid-1");
             const saveOrderSpy = vi
                 .spyOn(orderServiceModule.OrderService.prototype, "saveOrder")
                 .mockResolvedValue({ id: "123" });
@@ -206,10 +204,7 @@ describe("printifyController (unit)", () => {
                 },
             } as unknown as Request;
             const res = mockRes();
-            // TypeScript does not know about global.crypto, so we cast to any for mocking in tests.
-            vi.spyOn(global, "crypto" as any, "get").mockReturnValue({
-                randomUUID: () => "uuid-1",
-            });
+            mockGlobalCryptoRandomUUID("uuid-1");
             vi.spyOn(
                 orderServiceModule.OrderService.prototype,
                 "saveOrder"
