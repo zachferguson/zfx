@@ -19,6 +19,8 @@ vi.mock("../../../src/db/connection", () => {
 });
 
 const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
+// Helper to normalize whitespace in SQL for easier assertions
+const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 
 const sampleMetrics = {
     date: "2025-09-01",
@@ -60,9 +62,8 @@ describe("metricsService", () => {
         await saveDailyMetrics(sampleMetrics);
         expect(db.none).toHaveBeenCalledTimes(1);
         const [sql, params] = asMock(db.none).mock.calls[0];
-        const norm = sql.replace(/\s+/g, " ").trim();
         expect(sql).toContain("INSERT INTO zachtothegym.daily_metrics");
-        expect(norm).toContain("( date, weight, bmi, body_fat");
+        expect(norm(sql)).toContain("( date, weight, bmi, body_fat");
         expect(sql).toContain("VALUES (");
         for (let i = 1; i <= 26; i++) {
             expect(sql).toContain(`$${i}`);
@@ -119,8 +120,6 @@ describe("metricsService", () => {
 
         expect(db.any).toHaveBeenCalledTimes(1);
         const [sql, params] = asMock(db.any).mock.calls[0];
-
-        const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 
         expect(norm(sql)).toContain("SELECT * FROM zachtothegym.daily_metrics");
         expect(norm(sql)).toContain(

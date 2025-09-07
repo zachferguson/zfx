@@ -8,6 +8,11 @@ import { User, UserWithoutPassword } from "../types/user";
 type DbOrTx = IDatabase<unknown> | ITask<unknown>;
 const useDb = (t?: DbOrTx) => t ?? db;
 
+// Helper to get bcrypt salt rounds, reading env at call time for testability
+function getBcryptSaltRounds(): number {
+    return parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10);
+}
+
 /**
  * Registers a new user in the authentication schema.
  * Optionally runs inside a pg-promise transaction/task when `t` is provided.
@@ -27,10 +32,7 @@ export const registerUser = async (
     site: string,
     t?: DbOrTx
 ): Promise<UserWithoutPassword> => {
-    const hashedPassword = await bcrypt.hash(
-        password,
-        parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10)
-    );
+    const hashedPassword = await bcrypt.hash(password, getBcryptSaltRounds());
 
     const query = `
     INSERT INTO authentication.users (username, password_hash, email, site)
