@@ -7,9 +7,9 @@ import { PrintifyOrderRequest } from "../types/printifyOrder";
 import { OrderService } from "../services/orderService";
 import { sendOrderConfirmation } from "../services/emailService";
 
-export const printifyService = new PrintifyService(
-    process.env.PRINTIFY_API_KEY || ""
-);
+const key = process.env.PRINTIFY_API_KEY;
+if (!key) throw new Error("PRINTIFY_API_KEY is missing");
+export const printifyService = new PrintifyService(key);
 const orderService = new OrderService();
 
 /**

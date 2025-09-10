@@ -1,21 +1,21 @@
-// services/emailService.ts
-
-import nodemailer from "nodemailer";
+// src/services/emailService.ts
+import nodemailer, { Transporter } from "nodemailer";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 import dotenv from "dotenv";
 import { STORE_EMAILS } from "../config/storeEmails";
 import { escapeHtml } from "../utils/html";
 
 dotenv.config();
 
-type OrderEmailItem = {
+export type OrderEmailItem = {
     title: string;
     variant_label: string;
     quantity: number;
-    // price per item charged to the customer
+    // price per item charged to the customer (in cents)
     price: number;
 };
 
-type OrderEmailAddress = {
+export type OrderEmailAddress = {
     first_name: string;
     last_name: string;
     phone?: string;
@@ -31,29 +31,41 @@ export type OrderEmailSummary = {
     address: OrderEmailAddress;
     items: OrderEmailItem[];
     shippingMethod: number; // you can map this to a human label if you want
-    totalPrice: number;
+    totalPrice: number; // in cents
     currency: string; // e.g. "USD"
 };
 
+export type TransportFactory = (
+    opts: SMTPTransport.Options
+) => Transporter<SMTPTransport.SentMessageInfo>;
+
+export interface EmailDeps {
+    createTransport?: TransportFactory;
+    // Allow either SMTP options or jsonTransport for test runs
+    transportOptions?: SMTPTransport.Options | { jsonTransport: true };
+    logger?: Pick<Console, "error" | "log">;
+}
+
 /**
  * Formats a number as currency using the specified currency code.
+ * The input is assumed to be in **cents**.
+ *
  * @param {number} amount - The amount in cents.
  * @param {string} currency - The currency code (e.g., 'USD').
  * @returns {string} The formatted currency string.
  */
-const formatMoney = (amount: number, currency: string) =>
+export const formatMoney = (amount: number, currency: string) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
         amount / 100 // assuming cents
     );
 
-// Optional: translate your numeric shipping method to a label
-
 /**
  * Maps a shipping method ID to a human-readable label.
- * @param {number} id - The shipping method ID.
- * @returns {string} The label for the shipping method.
+ *
+ * @param {number} id - The numeric shipping method ID (e.g., from Printify).
+ * @returns {string} The human-friendly label for the shipping method.
  */
-const shippingMethodLabel = (id: number) => {
+export const shippingMethodLabel = (id: number) => {
     // Stub: customize to your Printify mapping if you have one
     const map: Record<number, string> = {
         1: "Standard",
@@ -63,35 +75,57 @@ const shippingMethodLabel = (id: number) => {
 };
 
 /**
- * Sends an order confirmation email to the customer for a given store and order.
- * @param {string} storeId - The store identifier.
+ * Builds the email envelope (from/to/subject) and both text + HTML bodies
+ * for a given order confirmation. This function is **pure** (no I/O).
+ *
+ * @param {string} storeId - The store identifier used to look up config.
  * @param {string} toEmail - The recipient's email address.
- * @param {string} orderId - The order identifier.
+ * @param {string} orderId - The order identifier to display and track.
  * @param {OrderEmailSummary} summary - The summary of the order.
- * @returns {Promise<{ success: boolean; error?: string; messageId?: string }>} The result of the email send attempt.
+ * @returns {{
+ *   ok: true,
+ *   mail: {
+ *     from: string,
+ *     to: string,
+ *     subject: string,
+ *     text: string,
+ *     html: string
+ *   }
+ * } | {
+ *   ok: false,
+ *   error: string
+ * }} Object indicating success and the composed mail, or an error if config is missing.
  */
-export const sendOrderConfirmation = async (
+export function composeOrderConfirmationEmail(
     storeId: string,
     toEmail: string,
     orderId: string,
     summary: OrderEmailSummary
-): Promise<{ success: boolean; error?: string; messageId?: string }> => {
+):
+    | {
+          ok: true;
+          mail: {
+              from: string;
+              to: string;
+              subject: string;
+              text: string;
+              html: string;
+          };
+      }
+    | { ok: false; error: string } {
     const emailConfig = STORE_EMAILS[storeId];
-
-    if (!emailConfig || !emailConfig.user || !emailConfig.pass) {
-        console.error(`No email configuration found for store: ${storeId}`);
-        return { success: false, error: "Email configuration missing." };
+    if (!emailConfig) {
+        return {
+            ok: false,
+            error: `No email configuration found for store: ${storeId}`,
+        };
     }
-
-    const transporter = nodemailer.createTransport({
-        host: "mail." + emailConfig.user.split("@")[1],
-        port: 465,
-        secure: true,
-        auth: {
-            user: emailConfig.user,
-            pass: emailConfig.pass,
-        },
-    });
+    if (!emailConfig.user) {
+        return {
+            ok: false,
+            error: `Email configuration missing "user" for store: ${storeId}`,
+        };
+    }
 
     // Build safe tracking URL (?orderId=...&email=...)
     const url = new URL("/order-status", emailConfig.frontendUrl);
@@ -180,25 +214,25 @@ export const sendOrderConfirmation = async (
         .filter(Boolean)
         .join("\n");
 
-    const mailOptions = {
+    const mail = {
         from: `"${emailConfig.storeName} Orders" <${emailConfig.user}>`,
         to: toEmail,
         subject: `${emailConfig.storeName} Order Confirmation - ${orderId}`,
         text: `Thank you for your order!
 
-        Your order ID is ${orderId}.
+Your order ID is ${orderId}.
 
-        Track your order: ${url.toString()}
+Track your order: ${url.toString()}
 
-        Shipping To:
-        ${textAddress}
+Shipping To:
+${textAddress}
 
-        Items:
-        ${textItems}
+Items:
+${textItems}
 
-        Shipping Method: ${shippingLabel}
-        Order Total: ${totalFormatted}
-        `,
+Shipping Method: ${shippingLabel}
+Order Total: ${totalFormatted}
+`,
         html: `
       <h2>Thank you for your order!</h2>
       <p>Your order ID is <strong>${escapeHtml(orderId)}</strong>.</p>
@@ -223,11 +257,69 @@ export const sendOrderConfirmation = async (
     `,
     };
 
+    return { ok: true, mail };
+}
+
+/**
+ * Sends an order confirmation email to the customer for a given store and order.
+ * This is the **I/O boundary**: it composes the message and then sends via nodemailer.
+ *
+ * Testability hooks:
+ *  - Inject a custom transporter via `deps.createTransport` or `deps.transportOptions`.
+ *  - Inject a test logger via `deps.logger`.
+ *
+ * @param {string} storeId - The store identifier.
+ * @param {string} toEmail - The recipient's email address.
+ * @param {string} orderId - The order identifier.
+ * @param {OrderEmailSummary} summary - The summary of the order.
+ * @param {EmailDeps} [deps] - Optional dependencies for testability and environment overrides.
+ * @returns {Promise<{ success: boolean; error?: string; messageId?: string }>} The result of the email send attempt.
+ */
+export const sendOrderConfirmation = async (
+    storeId: string,
+    toEmail: string,
+    orderId: string,
+    summary: OrderEmailSummary,
+    deps: EmailDeps = {}
+): Promise<{ success: boolean; error?: string; messageId?: string }> => {
+    const logger = deps.logger ?? console;
+
+    // Compose (pure)
+    const composed = composeOrderConfirmationEmail(
+        storeId,
+        toEmail,
+        orderId,
+        summary
+    );
+    if (!("ok" in composed) || !composed.ok) {
+        logger.error(composed.error);
+        return { success: false, error: composed.error };
+    }
+
+    // Transport selection
+    const emailConfig = STORE_EMAILS[storeId];
+    const defaultTransportOpts: SMTPTransport.Options =
+        (deps.transportOptions as SMTPTransport.Options) ?? {
+            host: "mail." + emailConfig.user.split("@")[1],
+            port: 465,
+            secure: true,
+            auth: {
+                user: emailConfig.user,
+                pass: emailConfig.pass,
+            },
+        };
+
+    const createTransport = deps.createTransport ?? nodemailer.createTransport;
+    const transporter = createTransport(
+        (deps.transportOptions ?? defaultTransportOpts) as SMTPTransport.Options
+    );
+
     try {
-        const info = await transporter.sendMail(mailOptions);
+        const transporter = createTransport(defaultTransportOpts);
+        const info = await transporter.sendMail(composed.mail);
         return { success: true, messageId: info.messageId };
     } catch (error: unknown) {
-        console.error("Error sending email:", error);
+        logger.error("Error sending email:", error);
         let errorMessage = "An unknown error occurred.";
         if (error instanceof Error) errorMessage = error.message;
         else if (typeof error === "string") errorMessage = error;

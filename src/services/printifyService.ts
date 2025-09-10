@@ -1,7 +1,8 @@
 import axios from "axios";
 import {
     ShippingRatesRequestBody,
-    ShippingResponse,
+    ShippingRates,
+    // ShippingMethod, ShippingCode, // not strictly needed here, but available if you want
 } from "../types/printifyShipping";
 import type {
     PrintifyOrderRequest,
@@ -9,6 +10,50 @@ import type {
 } from "../types/printifyOrder";
 
 const PRINTIFY_BASE_URL = "https://api.printify.com/v1";
+
+// raw printify shipping responsetype file-local
+type PrintifyShippingResponseRaw = {
+    standard?: number;
+    express?: number; // old express → priority
+    priority?: number; // new name may already appear
+    printify_express?: number; // transitional express
+    economy?: number;
+};
+
+/**
+ * Normalize the raw Printify shipping response to your canonical array:
+ * - Dedupe collisions using "cheapest wins" (safer for customers).
+ * - Stable display order when prices tie: economy → standard → express → priority.
+ */
+function normalizeShipping(raw: PrintifyShippingResponseRaw): ShippingRates {
+    const best: Partial<
+        Record<"economy" | "standard" | "express" | "priority", number>
+    > = {};
+
+    const setMin = (key: keyof typeof best, price?: number) => {
+        if (typeof price !== "number") return;
+        best[key] = best[key] == null ? price : Math.min(best[key]!, price);
+    };
+
+    setMin("standard", raw.standard);
+    setMin("express", raw.printify_express); // transitional express
+    setMin("priority", raw.express); // old express maps to priority
+    setMin("priority", raw.priority); // new priority (if present)
+    setMin("economy", raw.economy);
+
+    const ORDER = ["economy", "standard", "express", "priority"] as const;
+
+    // Convert to array, sort by price asc, then by canonical order for ties
+    return (
+        ORDER.flatMap((code) =>
+            best[code] != null ? [{ code, price: best[code]! }] : []
+        ) as ShippingRates
+    ).sort(
+        (a, b) =>
+            a.price - b.price ||
+            ORDER.indexOf(a.code as any) - ORDER.indexOf(b.code as any)
+    );
+}
 
 /**
  * Service for interacting with the Printify API.
@@ -35,9 +80,7 @@ export class PrintifyService {
             const response = await axios.get(
                 `${PRINTIFY_BASE_URL}/shops/${storeId}/products.json`,
                 {
-                    headers: {
-                        Authorization: `Bearer ${this.apiKey}`,
-                    },
+                    headers: { Authorization: `Bearer ${this.apiKey}` },
                 }
             );
             return response.data;
@@ -48,7 +91,7 @@ export class PrintifyService {
             );
             throw new Error(
                 `Failed to fetch products from Printify: ${
-                    err.response?.data?.message || "Unknown error"
+                    err?.response?.data?.message || "Unknown error"
                 }`
             );
         }
@@ -58,15 +101,15 @@ export class PrintifyService {
      * Retrieves shipping rates for an order from Printify.
      * @param {string} storeId - The Printify store ID.
      * @param {ShippingRatesRequestBody} requestBody - The shipping rates request body.
-     * @returns {Promise<ShippingResponse>} The shipping rates response.
+     * @returns {Promise<ShippingRates>} An array of shipping methods with their codes and prices (in cents), sorted ascending by price.
      * @throws {Error} If the request fails.
      */
     async getShippingRates(
         storeId: string,
         requestBody: ShippingRatesRequestBody
-    ): Promise<ShippingResponse> {
+    ): Promise<ShippingRates> {
         try {
-            const response = await axios.post<ShippingResponse>(
+            const { data } = await axios.post<PrintifyShippingResponseRaw>(
                 `${PRINTIFY_BASE_URL}/shops/${storeId}/orders/shipping.json`,
                 requestBody,
                 {
@@ -77,20 +120,16 @@ export class PrintifyService {
                 }
             );
 
-            if (typeof response.data.standard === "number") {
-                response.data.standard = [
-                    {
-                        id: response.data.standard,
-                        name: "Standard Shipping",
-                        price: 499,
-                        countries: ["US"],
-                    },
-                ];
-            }
-
-            return response.data;
+            return normalizeShipping(data);
         } catch (err: any) {
-            console.error("Error fetching shipping from Printify:", err);
+            if (axios.isAxiosError(err)) {
+                console.error("Error fetching shipping from Printify:", {
+                    status: err.response?.status,
+                    data: err.response?.data,
+                });
+            } else {
+                console.error("Error fetching shipping from Printify:", err);
+            }
             throw new Error("Failed to fetch shipping options from Printify.");
         }
     }
@@ -118,7 +157,7 @@ export class PrintifyService {
                 }
             );
 
-            console.log("🚀 Order sent to production:", response.data);
+            console.log("Order sent to production:", response.data);
         } catch (err: any) {
             console.error(
                 "Error sending order to production:",
@@ -126,7 +165,7 @@ export class PrintifyService {
             );
             throw new Error(
                 `Failed to send order to production: ${
-                    err.response?.data?.message || "Unknown error"
+                    err?.response?.data?.message || "Unknown error"
                 }`
             );
         }
@@ -177,7 +216,6 @@ export class PrintifyService {
                 "Order successfully submitted to Printify:",
                 response.data
             );
-
             return response.data;
         } catch (err: any) {
             console.error(
@@ -195,11 +233,9 @@ export class PrintifyService {
     async getOrder(storeId: string, printifyOrderId: string) {
         try {
             const response = await axios.get<PrintifyOrderResponse>(
-                `https://api.printify.com/v1/shops/${storeId}/orders/${printifyOrderId}.json`,
+                `${PRINTIFY_BASE_URL}/shops/${storeId}/orders/${printifyOrderId}.json`,
                 {
-                    headers: {
-                        Authorization: `Bearer ${this.apiKey}`,
-                    },
+                    headers: { Authorization: `Bearer ${this.apiKey}` },
                 }
             );
             return response.data;

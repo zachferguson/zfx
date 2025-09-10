@@ -1,3 +1,8 @@
+/**
+ * Represents a single day's health/fitness metrics for a user.
+ *
+ * Used by: metricsService, metricsService.unit.test.ts, zachtothegymController, zachtothegymRoutes
+ */
 export type DailyMetrics = {
     date: string;
     weight?: number;

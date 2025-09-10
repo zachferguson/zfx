@@ -1,3 +1,8 @@
+/**
+ * Request body for submitting a new order to Printify API.
+ *
+ * Used by: printifyService (submitOrder), printifyService.unit.test.ts
+ */
 export interface PrintifyOrderRequest {
     /** The items in the order. */
     line_items: PrintifyLineItem[];
@@ -13,6 +18,11 @@ export interface PrintifyOrderRequest {
     shipping_cost: number;
 }
 
+/**
+ * Metadata for a Printify line item (product details, variant, etc).
+ *
+ * Used by: PrintifyLineItem, printifyService
+ */
 export interface PrintifyLineItemMetadata {
     /** Product title. */
     title: string;
@@ -26,6 +36,11 @@ export interface PrintifyLineItemMetadata {
     country?: string;
 }
 
+/**
+ * Represents a single item in a Printify order.
+ *
+ * Used by: PrintifyOrderRequest, PrintifyOrderResponse, printifyService
+ */
 export interface PrintifyLineItem {
     /** Product ID. */
     product_id: string;
@@ -49,6 +64,11 @@ export interface PrintifyLineItem {
     fulfilled_at?: string;
 }
 
+/**
+ * Customer details for a Printify order.
+ *
+ * Used by: PrintifyOrderRequest, printifyService
+ */
 export interface PrintifyCustomer {
     /** Customer email address. */
     email: string;
@@ -56,6 +76,11 @@ export interface PrintifyCustomer {
     address: PrintifyCustomerAddress;
 }
 
+/**
+ * Shipping address for a Printify order customer.
+ *
+ * Used by: PrintifyCustomer, PrintifyOrderRequest, PrintifyOrderResponse, printifyService
+ */
 export interface PrintifyCustomerAddress {
     /** First name. */
     first_name: string;
@@ -77,6 +102,11 @@ export interface PrintifyCustomerAddress {
     zip: string;
 }
 
+/**
+ * Extra metadata for a Printify order (internal tracking, etc).
+ *
+ * Used by: PrintifyOrderResponse, printifyService
+ */
 export interface PrintifyOrderMetadata {
     /** Order type (e.g., "external"). */
     order_type?: string;
@@ -88,6 +118,11 @@ export interface PrintifyOrderMetadata {
     shop_fulfilled_at?: string;
 }
 
+/**
+ * Shipment tracking details for a Printify order.
+ *
+ * Used by: PrintifyOrderResponse, printifyService
+ */
 export interface PrintifyShipment {
     /** Carrier name (e.g., "usps", "fedex"). */
     carrier: string;
@@ -99,6 +134,11 @@ export interface PrintifyShipment {
     delivered_at?: string;
 }
 
+/**
+ * Printify Connect integration details for an order.
+ *
+ * Used by: PrintifyOrderResponse, printifyService
+ */
 export interface PrintifyConnect {
     /** Printify Connect URL. */
     url: string;
@@ -106,6 +146,11 @@ export interface PrintifyConnect {
     id: string;
 }
 
+/**
+ * Response shape for a Printify order (API response from Printify).
+ *
+ * Used by: printifyService (API response), printifyService.unit.test.ts
+ */
 export interface PrintifyOrderResponse {
     /** Printify's unique order ID. */
     id: string;

@@ -11,6 +11,19 @@ vi.mock("express-validator", () => ({
 }));
 import { validationResult } from "express-validator";
 
+/**
+ * @file Unit tests for printifyController.
+ *
+ * Tests validate controller behavior only:
+ * - Request validation driven via a mocked `validationResult`.
+ * - Service layer calls are mocked to isolate controller logic.
+ *
+ * Organization:
+ * - Outer "unit" describe for the controller
+ * - Per-endpoint sub-describes
+ * - Each test has a single-line, plain-language intent comment
+ */
+
 describe("printifyController (unit)", () => {
     function mockRes() {
         const res: Partial<Response> & { statusCode?: number; body?: unknown } =

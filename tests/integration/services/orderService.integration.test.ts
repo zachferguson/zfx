@@ -1,4 +1,3 @@
-// tests/integration/services/orderService.integration.test.ts
 import {
     describe,
     it,
@@ -12,12 +11,26 @@ import path from "node:path";
 
 import type { OrderService as OrderServiceType } from "../../../src/services/orderService";
 
+/**
+ * @file Integration tests for orderService.
+ *
+ * Two suites:
+ * 1) pg-mem (always runs): service wired to an in-memory pg instance via a mocked db module.
+ * 2) real DB (conditional on DATABASE_URL): each test runs in a transaction and is rolled back.
+ *
+ * Scenarios covered:
+ * - saveOrder: inserts a row
+ * - getOrderByCustomer: fetches by (orderNumber, email)
+ * - updatePrintifyOrderId: updates previously saved order
+ * - Real DB: the above behaviors inside a tx and rolled back (no side effects)
+ */
+
 const REAL_DB = !!(
     process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length
 );
 
 // --- PG-MEM SUITE (always) -----------------------------------------------------
-describe("orderService with pg-mem (no real DB)", () => {
+describe("orderService (integration, pg-mem / no real DB)", () => {
     let handles: any;
     let svc: OrderServiceType;
 
@@ -91,179 +104,199 @@ describe("orderService with pg-mem (no real DB)", () => {
         };
     }
 
-    it("saveOrder inserts a row and getOrderByCustomer fetches it", async () => {
-        const order = buildOrder();
-        const { id } = await svc.saveOrder(order);
-        expect(Number(id)).toBeGreaterThan(0);
+    describe("saveOrder / getOrderByCustomer", () => {
+        // Should insert an order and subsequently fetch it by (orderNumber, email)
+        it("saveOrder inserts a row and getOrderByCustomer fetches it", async () => {
+            const order = buildOrder();
+            const { id } = await svc.saveOrder(order);
+            expect(Number(id)).toBeGreaterThan(0);
 
-        const fetched = await svc.getOrderByCustomer(
-            order.orderNumber,
-            order.email
-        );
-        expect(fetched).toBeTruthy();
-        expect(fetched!.store_id).toBe(order.storeId);
-        expect(fetched!.printify_order_id).toBeNull();
+            const fetched = await svc.getOrderByCustomer(
+                order.orderNumber,
+                order.email
+            );
+            expect(fetched).toBeTruthy();
+            expect(fetched!.store_id).toBe(order.storeId);
+            expect(fetched!.printify_order_id).toBeNull();
+        });
     });
 
-    it("updatePrintifyOrderId updates the row", async () => {
-        const order = buildOrder();
-        const { id } = await svc.saveOrder(order);
-        expect(Number(id)).toBeGreaterThan(0);
+    describe("updatePrintifyOrderId", () => {
+        // Should update printify_order_id for a previously saved order
+        it("updatePrintifyOrderId updates the row", async () => {
+            const order = buildOrder();
+            const { id } = await svc.saveOrder(order);
+            expect(Number(id)).toBeGreaterThan(0);
 
-        const updatedId = await svc.updatePrintifyOrderId(
-            order.orderNumber,
-            "po_789"
-        );
-        expect(Number(updatedId)).toBeGreaterThan(0);
+            const updatedId = await svc.updatePrintifyOrderId(
+                order.orderNumber,
+                "po_789"
+            );
+            expect(Number(updatedId)).toBeGreaterThan(0);
 
-        const fetched = await svc.getOrderByCustomer(
-            order.orderNumber,
-            order.email
-        );
-        expect(fetched?.printify_order_id).toBe("po_789");
+            const fetched = await svc.getOrderByCustomer(
+                order.orderNumber,
+                order.email
+            );
+            expect(fetched?.printify_order_id).toBe("po_789");
+        });
     });
 });
 
 // --- REAL DB SUITE (only if DATABASE_URL is set) -------------------------------
-describe.runIf(REAL_DB)("orderService (real DB with rollback)", () => {
-    let svc: OrderServiceType;
-    let realDb: any;
+describe.runIf(REAL_DB)(
+    "orderService (integration, real DB with rollback)",
+    () => {
+        let svc: OrderServiceType;
+        let realDb: any;
 
-    const ROLLBACK = new Error("__ROLLBACK__");
-    let HAS_FULL_SCHEMA = true;
+        const ROLLBACK = new Error("__ROLLBACK__");
+        let HAS_FULL_SCHEMA = true;
 
-    beforeAll(async () => {
-        vi.resetModules(); // ensure no pg-mem mocks leak
-        realDb = (await import("../../../src/db/connection")).default;
+        beforeAll(async () => {
+            vi.resetModules(); // ensure no pg-mem mocks leak
+            realDb = (await import("../../../src/db/connection")).default;
 
-        const mod = await import("../../../src/services/orderService");
-        const OrderService = mod.OrderService;
-        svc = new OrderService();
+            const mod = await import("../../../src/services/orderService");
+            const OrderService = mod.OrderService;
+            svc = new OrderService();
 
-        // Detect if the real table has all columns the service writes
-        const rows: Array<{ column_name: string }> = await realDb.any(
-            `
+            // Detect if the real table has all columns the service writes
+            const rows: Array<{ column_name: string }> = await realDb.any(
+                `
         SELECT column_name
         FROM information_schema.columns
         WHERE table_schema = 'orders'
           AND table_name = 'printifyorders'
       `
-        );
-        const cols = new Set(rows.map((r) => r.column_name));
-        const required = [
-            "shipping_address",
-            "items",
-            "stripe_payment_id",
-            "payment_status",
-            "order_status",
-        ];
-        HAS_FULL_SCHEMA = required.every((c) => cols.has(c));
-    });
-
-    // helper: run code inside a tx and roll back at the end
-    async function withTxRollback(fn: (t: any) => Promise<void>) {
-        await realDb
-            .tx(async (t: any) => {
-                await fn(t);
-                throw ROLLBACK; // force rollback
-            })
-            .catch((e: unknown) => {
-                if (e !== ROLLBACK) throw e;
-            });
-    }
-
-    const itIf = HAS_FULL_SCHEMA ? it : it.skip;
-
-    itIf(
-        "saveOrder + getOrderByCustomer inside a tx, then rolls back",
-        async () => {
-            const order = {
-                orderNumber: `ord-${Date.now()}`,
-                storeId: "store-1",
-                email: "buyer@example.com",
-                totalPrice: 1111,
-                currency: "USD",
-                shippingMethod: 1,
-                shippingCost: 100,
-                shippingAddress: { line1: "1 First St" },
-                items: [{ sku: "sku", qty: 1 }],
-                stripePaymentId: "pi_real",
-                paymentStatus: "paid",
-                orderStatus: "created",
-            };
-
-            await withTxRollback(async (t) => {
-                const { id } = await svc.saveOrder(order, t);
-                expect(Number(id)).toBeGreaterThan(0);
-
-                const fetched = await svc.getOrderByCustomer(
-                    order.orderNumber,
-                    order.email,
-                    t
-                );
-                expect(fetched?.store_id).toBe(order.storeId);
-                expect(fetched?.printify_order_id).toBeNull();
-            });
-
-            // After rollback, row should not persist
-            const outside = await svc.getOrderByCustomer(
-                order.orderNumber,
-                order.email
             );
-            expect(outside).toBeNull();
+            const cols = new Set(rows.map((r) => r.column_name));
+            const required = [
+                "shipping_address",
+                "items",
+                "stripe_payment_id",
+                "payment_status",
+                "order_status",
+            ];
+            HAS_FULL_SCHEMA = required.every((c) => cols.has(c));
+        });
+
+        // helper: run code inside a tx and roll back at the end
+        async function withTxRollback(fn: (t: any) => Promise<void>) {
+            await realDb
+                .tx(async (t: any) => {
+                    await fn(t);
+                    throw ROLLBACK; // force rollback
+                })
+                .catch((e: unknown) => {
+                    if (e !== ROLLBACK) throw e;
+                });
         }
-    );
 
-    it("updatePrintifyOrderId updates a row inside a tx (rolls back)", async () => {
-        const orderNumber = `ord-${Date.now()}`;
-        const email = "buyer@example.com";
+        const itIf = HAS_FULL_SCHEMA ? it : it.skip;
 
-        await withTxRollback(async (t) => {
-            // Ensure there is a row to update. If full schema exists, use the service insert;
-            // otherwise insert a minimal row directly.
-            if (HAS_FULL_SCHEMA) {
-                await svc.saveOrder(
-                    {
-                        orderNumber,
+        describe("transactional behavior", () => {
+            // Should insert and fetch within a tx, and rollback leaves no persistence
+            itIf(
+                "saveOrder + getOrderByCustomer inside a tx, then rolls back",
+                async () => {
+                    const order = {
+                        orderNumber: `ord-${Date.now()}`,
                         storeId: "store-1",
-                        email,
-                        totalPrice: 2222,
+                        email: "buyer@example.com",
+                        totalPrice: 1111,
                         currency: "USD",
                         shippingMethod: 1,
-                        shippingCost: 200,
-                        shippingAddress: {},
-                        items: [],
-                        stripePaymentId: "pi_x",
+                        shippingCost: 100,
+                        shippingAddress: { line1: "1 First St" },
+                        items: [{ sku: "sku", qty: 1 }],
+                        stripePaymentId: "pi_real",
                         paymentStatus: "paid",
                         orderStatus: "created",
-                    },
-                    t
-                );
-            } else {
-                await t.none(
-                    `
+                    };
+
+                    await withTxRollback(async (t) => {
+                        const { id } = await svc.saveOrder(order, t);
+                        expect(Number(id)).toBeGreaterThan(0);
+
+                        const fetched = await svc.getOrderByCustomer(
+                            order.orderNumber,
+                            order.email,
+                            t
+                        );
+                        expect(fetched?.store_id).toBe(order.storeId);
+                        expect(fetched?.printify_order_id).toBeNull();
+                    });
+
+                    // After rollback, row should not persist
+                    const outside = await svc.getOrderByCustomer(
+                        order.orderNumber,
+                        order.email
+                    );
+                    expect(outside).toBeNull();
+                }
+            );
+
+            // Should update printify_order_id within a tx, and rollback leaves no persistence
+            it("updatePrintifyOrderId updates a row inside a tx (rolls back)", async () => {
+                const orderNumber = `ord-${Date.now()}`;
+                const email = "buyer@example.com";
+
+                await withTxRollback(async (t) => {
+                    // Ensure there is a row to update. If full schema exists, use the service insert;
+                    // otherwise insert a minimal row directly.
+                    if (HAS_FULL_SCHEMA) {
+                        await svc.saveOrder(
+                            {
+                                orderNumber,
+                                storeId: "store-1",
+                                email,
+                                totalPrice: 2222,
+                                currency: "USD",
+                                shippingMethod: 1,
+                                shippingCost: 200,
+                                shippingAddress: {},
+                                items: [],
+                                stripePaymentId: "pi_x",
+                                paymentStatus: "paid",
+                                orderStatus: "created",
+                            },
+                            t
+                        );
+                    } else {
+                        await t.none(
+                            `
             INSERT INTO orders.printifyorders (
               order_number, store_id, email, total_price, currency,
               shipping_method, shipping_cost
             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
           `,
-                    [orderNumber, "store-1", email, 2222, "USD", 1, 200]
+                            [orderNumber, "store-1", email, 2222, "USD", 1, 200]
+                        );
+                    }
+
+                    const updatedId = await svc.updatePrintifyOrderId(
+                        orderNumber,
+                        "po_real",
+                        t
+                    );
+                    expect(Number(updatedId)).toBeGreaterThan(0);
+
+                    const fetched = await svc.getOrderByCustomer(
+                        orderNumber,
+                        email,
+                        t
+                    );
+                    expect(fetched?.printify_order_id).toBe("po_real");
+                });
+
+                // After rollback, there should be no lasting side-effects
+                const outside = await svc.getOrderByCustomer(
+                    orderNumber,
+                    email
                 );
-            }
-
-            const updatedId = await svc.updatePrintifyOrderId(
-                orderNumber,
-                "po_real",
-                t
-            );
-            expect(Number(updatedId)).toBeGreaterThan(0);
-
-            const fetched = await svc.getOrderByCustomer(orderNumber, email, t);
-            expect(fetched?.printify_order_id).toBe("po_real");
+                expect(outside).toBeNull();
+            });
         });
-
-        // After rollback, there should be no lasting side-effects
-        const outside = await svc.getOrderByCustomer(orderNumber, email);
-        expect(outside).toBeNull();
-    });
-});
+    }
+);

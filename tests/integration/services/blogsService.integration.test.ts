@@ -9,179 +9,299 @@ import {
 } from "vitest";
 import path from "node:path";
 
-type BlogsSvc = typeof import("../../../src/services/blogsService");
+import type { DailyMetrics } from "../../../src/types/dailyMetrics";
+type MetricsSvc = typeof import("../../../src/services/metricsService");
 
-// Only run real DB smoke tests if a connection string is present
+/**
+ * @file Integration tests for metricsService.
+ *
+ * Two suites:
+ * 1) pg-mem (always runs): service is wired to an in-memory pg instance via a mocked db module.
+ * 2) real DB (conditional on DATABASE_URL): each test executes inside a transaction and is rolled back.
+ *
+ * Scenarios covered:
+ * - saveDailyMetrics: insert + upsert behavior
+ * - getMetricsInRange: sorting ASC, empty ranges
+ * - deleteMetricsByDate: delete-and-return semantics
+ * - deleteMetricsInRange: inclusive deletes with count
+ * - Real DB: all of the above within a tx and rolled back (no side effects)
+ */
+
 const REAL_DB = !!(
     process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length
 );
 
+/** Build a full DailyMetrics object with sensible defaults, override as needed */
+function buildMetrics(
+    date: string,
+    overrides: Partial<DailyMetrics> = {}
+): DailyMetrics {
+    const base: DailyMetrics = {
+        date,
+        weight: 180,
+        bmi: 24,
+        body_fat: 18,
+        fat_free_weight: 147,
+        subcutaneous_fat: 16,
+        visceral_fat: 7,
+        body_water: 60,
+        skeletal_muscle: 42,
+        muscle_mass: 75,
+        bone_mass: 8,
+        protein: 16,
+        bmr: 1650,
+        metabolic_age: 30,
+        total_steps: 8000,
+        walking_steps: 7000,
+        running_steps: 1000,
+        exercise_minutes: 45,
+        calories_burned_walking: 250,
+        calories_burned_running: 150,
+        calories_burned_exercise: 200,
+        total_calories_burned: 600,
+        calories_consumed: 2200,
+        protein_grams: 120,
+        fats_grams: 70,
+        carbs_grams: 250,
+        ...overrides,
+    };
+    return base;
+}
+
+// helper to normalize whatever we get back (Date or string) to 'YYYY-MM-DD'
+const asYMD = (v: unknown) =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+
 // --- PG-MEM SUITE (always) -----------------------------------------------------
-describe("blogsService with pg-mem (no real DB)", () => {
+describe("metricsService (integration, pg-mem / no real DB)", () => {
     let handles: any;
-    let getAllBlogs: BlogsSvc["getAllBlogs"];
-    let getBlogById: BlogsSvc["getBlogById"];
-    let createBlog: BlogsSvc["createBlog"];
-    let deleteBlogById: BlogsSvc["deleteBlogById"];
+    let saveDailyMetrics: MetricsSvc["saveDailyMetrics"];
+    let getMetricsInRange: MetricsSvc["getMetricsInRange"];
+    let deleteMetricsByDate: MetricsSvc["deleteMetricsByDate"];
+    let deleteMetricsInRange: MetricsSvc["deleteMetricsInRange"];
 
     beforeAll(async () => {
         vi.resetModules();
 
-        // Build pg-mem and create schemas (no seed here; seed per test)
         const pgmem = await import("../../utils/pgmem");
         handles = await pgmem.setupPgMemAll({ seed: false });
 
-        // Mock the *resolved absolute id* of src/db/connection
+        // Mock the resolved absolute id of src/db/connection
         const connAbsPath = path.resolve(
             __dirname,
             "../../../src/db/connection"
         );
         vi.doMock(connAbsPath, () => ({ default: handles.db }));
 
-        // Import SUT after mocking so it uses pg-mem
-        const svc = await import("../../../src/services/blogsService");
-        getAllBlogs = svc.getAllBlogs;
-        getBlogById = svc.getBlogById;
-        createBlog = svc.createBlog;
-        deleteBlogById = svc.deleteBlogById;
+        // Import service after mocking so it uses pg-mem
+        const svc = await import("../../../src/services/metricsService");
+        saveDailyMetrics = svc.saveDailyMetrics;
+        getMetricsInRange = svc.getMetricsInRange;
+        deleteMetricsByDate = svc.deleteMetricsByDate;
+        deleteMetricsInRange = svc.deleteMetricsInRange;
     });
 
-    async function resetTables() {
+    async function resetTable() {
         await handles.db.none(
-            `TRUNCATE TABLE zachtothegym.blogs RESTART IDENTITY CASCADE;`
+            `TRUNCATE TABLE zachtothegym.daily_metrics RESTART IDENTITY CASCADE;`
         );
     }
 
     beforeEach(async () => {
-        await resetTables();
-        await handles.db.none(`
-      INSERT INTO zachtothegym.blogs (title, content, categories, created_at)
-      VALUES
-        ('Old', 'B-old', '{tech}', now() - interval '1 day'),
-        ('New', 'B-new', '{life}', now());
-    `);
+        await resetTable();
     });
 
     afterAll(() => {
         handles?.stop?.();
     });
 
-    // Should return all blogs ordered by most recent first
-    it("getAllBlogs returns rows ordered by created_at DESC", async () => {
-        const rows = await getAllBlogs();
-        expect(rows.length).toBe(2);
-        expect(rows[0].title).toBe("New");
-        expect(rows[1].title).toBe("Old");
+    describe("saveDailyMetrics", () => {
+        // Should insert a new day and then upsert-update it on second call
+        it("inserts a new day, then updates it via upsert", async () => {
+            const d = "2025-01-01";
+            await saveDailyMetrics(buildMetrics(d));
+
+            let rows = await getMetricsInRange(d, d);
+            expect(rows.length).toBe(1);
+            expect(Number(rows[0].weight)).toBe(180);
+
+            // Upsert update (change weight)
+            await saveDailyMetrics(buildMetrics(d, { weight: 182 }));
+            rows = await getMetricsInRange(d, d);
+            expect(rows.length).toBe(1);
+            expect(Number(rows[0].weight)).toBe(182);
+        });
     });
 
-    // Should fetch a blog by ID, or return null if not found
-    it("getBlogById returns the row or null", async () => {
-        const all = await getAllBlogs();
-        const id = all[0].id;
-        const found = await getBlogById(id);
-        expect(found?.id).toBe(id);
+    describe("getMetricsInRange", () => {
+        // Should return multiple days sorted ASC in the requested range
+        it("range query returns multiple days sorted ASC", async () => {
+            await saveDailyMetrics(
+                buildMetrics("2025-02-01", { total_steps: 5000 })
+            );
+            await saveDailyMetrics(
+                buildMetrics("2025-02-02", { total_steps: 9000 })
+            );
 
-        const missing = await getBlogById(9999);
-        expect(missing).toBeNull();
+            const rows2 = await getMetricsInRange("2025-02-01", "2025-02-02");
+            expect(rows2.length).toBe(2);
+            expect(asYMD(rows2[0].date)).toBe("2025-02-01");
+            expect(asYMD(rows2[1].date)).toBe("2025-02-02");
+        });
+
+        // Should return an empty array when the range has no data
+        it("range with no data returns empty array", async () => {
+            const rows = await getMetricsInRange("2030-01-01", "2030-01-02");
+            expect(rows.length).toBe(0);
+        });
     });
 
-    // Should insert a new blog and return the created row
-    it("createBlog inserts and returns the created row", async () => {
-        const created = await createBlog("T", "C", ["cat1", "cat2"]);
-        expect(created.id).toBeGreaterThan(0);
-        expect(created.title).toBe("T");
-        expect(Array.isArray(created.categories)).toBe(true);
+    describe("deleteMetricsByDate", () => {
+        // Should delete a row by date and return the deleted row
+        it("deleteMetricsByDate removes the row and returns it", async () => {
+            const d1 = "2025-03-01";
+            const d2 = "2025-03-02";
+            await saveDailyMetrics(buildMetrics(d1));
+            await saveDailyMetrics(buildMetrics(d2));
 
-        const roundTrip = await getBlogById(created.id);
-        expect(roundTrip?.title).toBe("T");
+            const deleted = await deleteMetricsByDate(d1);
+            expect(asYMD(deleted?.date)).toBe(d1);
+
+            const remain = await getMetricsInRange(d1, d2);
+            expect(remain.map((r) => asYMD(r.date))).toEqual([d2]);
+        });
     });
 
-    // Should delete a blog by ID and return the deleted row
-    it("deleteBlogById removes the row and returns it", async () => {
-        const before = await getAllBlogs();
-        expect(before.length).toBe(2);
-        const id = before[0].id;
+    describe("deleteMetricsInRange", () => {
+        // Should delete rows in an inclusive range and return the count
+        it("deleteMetricsInRange removes rows in inclusive range and returns count", async () => {
+            const d1 = "2025-04-01";
+            const d2 = "2025-04-02";
+            const d3 = "2025-04-03";
+            await saveDailyMetrics(buildMetrics(d1));
+            await saveDailyMetrics(buildMetrics(d2));
+            await saveDailyMetrics(buildMetrics(d3));
 
-        const deleted = await deleteBlogById(id);
-        expect(deleted?.id).toBe(id);
+            const count = await deleteMetricsInRange(d1, d2);
+            expect(count).toBe(2);
 
-        const after = await getAllBlogs();
-        expect(after.find((b) => b.id === id)).toBeUndefined();
-
-        const refetch = await getBlogById(id);
-        expect(refetch).toBeNull();
-    });
-
-    // Should return null when trying to delete a non-existent blog
-    it("deleteBlogById returns null for a missing row", async () => {
-        const deleted = await deleteBlogById(999999);
-        expect(deleted).toBeNull();
+            const remain2 = await getMetricsInRange(d1, d3);
+            expect(remain2.map((r) => asYMD(r.date))).toEqual([d3]);
+        });
     });
 });
 
 // --- REAL DB SMOKE SUITE (only if DATABASE_URL is set) -------------------------
-describe.runIf(REAL_DB)("blogsService (real DB with rollback)", () => {
-    let getAllBlogs: BlogsSvc["getAllBlogs"];
-    let getBlogById: BlogsSvc["getBlogById"];
-    let createBlog: BlogsSvc["createBlog"];
-    let deleteBlogById: BlogsSvc["deleteBlogById"];
-    let realDb: any;
+describe.runIf(REAL_DB)(
+    "metricsService (integration, real DB with rollback)",
+    () => {
+        let saveDailyMetrics: MetricsSvc["saveDailyMetrics"];
+        let getMetricsInRange: MetricsSvc["getMetricsInRange"];
+        let deleteMetricsByDate: MetricsSvc["deleteMetricsByDate"];
+        let deleteMetricsInRange: MetricsSvc["deleteMetricsInRange"];
+        let realDb: any;
 
-    const ROLLBACK = new Error("__ROLLBACK__");
+        const ROLLBACK = new Error("__ROLLBACK__");
 
-    beforeAll(async () => {
-        vi.resetModules(); // ensure no mocks from pg-mem leak here
-        realDb = (await import("../../../src/db/connection")).default;
+        beforeAll(async () => {
+            vi.resetModules(); // ensure pg-mem mocks don't leak
+            realDb = (await import("../../../src/db/connection")).default;
+            const svc = await import("../../../src/services/metricsService");
+            saveDailyMetrics = svc.saveDailyMetrics;
+            getMetricsInRange = svc.getMetricsInRange;
+            deleteMetricsByDate = svc.deleteMetricsByDate;
+            deleteMetricsInRange = svc.deleteMetricsInRange;
+        });
 
-        const svc = await import("../../../src/services/blogsService");
-        getAllBlogs = svc.getAllBlogs;
-        getBlogById = svc.getBlogById;
-        createBlog = svc.createBlog;
-        deleteBlogById = svc.deleteBlogById;
-    });
+        // helper to run inside a tx and roll back at the end
+        async function withTxRollback(fn: (t: any) => Promise<void>) {
+            await realDb
+                .tx(async (t: any) => {
+                    await fn(t);
+                    throw ROLLBACK; // force rollback
+                })
+                .catch((e: unknown) => {
+                    if (e !== ROLLBACK) throw e;
+                });
+        }
 
-    // helper to run inside a tx and roll back at the end
-    async function withTxRollback(fn: (t: any) => Promise<void>) {
-        await realDb
-            .tx(async (t: any) => {
-                await fn(t);
-                throw ROLLBACK; // force rollback
-            })
-            .catch((e: unknown) => {
-                if (e !== ROLLBACK) throw e;
+        describe("transactional behavior", () => {
+            // Should save and fetch inside a transaction, then roll back (no side-effects)
+            it("save + fetch inside a tx then roll back (no side-effects)", async () => {
+                const d = new Date().toISOString().slice(0, 10); // YYYY-MM-DD today
+
+                await withTxRollback(async (t) => {
+                    await saveDailyMetrics(buildMetrics(d, { weight: 199 }), t);
+                    const inside = await getMetricsInRange(d, d, t);
+                    expect(inside.length).toBe(1);
+                    expect(Number(inside[0].weight)).toBe(199);
+                });
+
+                // After rollback, there should be no row for that date
+                const outside = await getMetricsInRange(d, d);
+                expect(outside.length).toBe(0);
             });
+
+            // Should upsert update inside a transaction, then roll back to no data
+            it("upsert update inside a tx also rolls back", async () => {
+                const d = "2099-12-31"; // unlikely to exist
+
+                await withTxRollback(async (t) => {
+                    await saveDailyMetrics(buildMetrics(d, { weight: 170 }), t);
+                    await saveDailyMetrics(buildMetrics(d, { weight: 171 }), t);
+
+                    const inside = await getMetricsInRange(d, d, t);
+                    expect(inside.length).toBe(1);
+                    expect(Number(inside[0].weight)).toBe(171);
+                });
+
+                const outside = await getMetricsInRange(d, d);
+                expect(outside.length).toBe(0);
+            });
+
+            // Should delete-by-date inside a transaction and roll back
+            it("delete-by-date inside a tx rolls back", async () => {
+                const d = "2099-11-11";
+
+                await withTxRollback(async (t) => {
+                    await saveDailyMetrics(buildMetrics(d, { weight: 180 }), t);
+                    const deleted = await deleteMetricsByDate(d, t);
+                    expect(deleted?.date).toBe(d);
+                    const after = await getMetricsInRange(d, d, t);
+                    expect(after.length).toBe(0);
+                });
+
+                // nothing persisted
+                const outside = await getMetricsInRange(d, d);
+                expect(outside.length).toBe(0);
+            });
+
+            // Should delete-in-range inside a transaction and roll back
+            it("delete-in-range inside a tx rolls back", async () => {
+                const d1 = "2099-10-01";
+                const d2 = "2099-10-02";
+                const d3 = "2099-10-03";
+
+                await withTxRollback(async (t) => {
+                    await saveDailyMetrics(buildMetrics(d1), t);
+                    await saveDailyMetrics(buildMetrics(d2), t);
+                    await saveDailyMetrics(buildMetrics(d3), t);
+
+                    const count = await deleteMetricsInRange(d1, d2, t);
+                    expect(count).toBe(2);
+
+                    const remain = await getMetricsInRange(d1, d3, t);
+                    expect(remain.map((r: DailyMetrics) => r.date)).toEqual([
+                        d3,
+                    ]);
+                });
+
+                // nothing persisted
+                const outside = await getMetricsInRange(d1, d3);
+                expect(outside.find((r) => r.date === d1)).toBeUndefined();
+                expect(outside.find((r) => r.date === d2)).toBeUndefined();
+                expect(outside.find((r) => r.date === d3)).toBeUndefined();
+            });
+        });
     }
-
-    // Should create and fetch a blog inside a transaction, then roll back
-    it("create + fetch inside a tx then roll back (no side-effects)", async () => {
-        const uniqueTitle = `[blog-${Date.now()}]`;
-
-        await withTxRollback(async (t) => {
-            const created = await createBlog(uniqueTitle, "C", ["x"], t);
-            expect(created.id).toBeGreaterThan(0);
-
-            const found = await getBlogById(created.id, t);
-            expect(found?.title).toBe(uniqueTitle);
-
-            const allInside = await getAllBlogs(t);
-            expect(allInside.find((b) => b.id === created.id)).toBeTruthy();
-        });
-
-        // After rollback, it should not exist
-        const allOutside = await getAllBlogs();
-        expect(allOutside.find((b) => b.title === uniqueTitle)).toBeUndefined();
-    });
-
-    // Should delete a blog inside a transaction and roll back
-    it("delete inside tx rolls back cleanly", async () => {
-        await withTxRollback(async (t) => {
-            const created = await createBlog("[del-test]", "C", ["x"], t);
-            const deleted = await deleteBlogById(created.id, t);
-            expect(deleted?.id).toBe(created.id);
-
-            const refetch = await getBlogById(created.id, t);
-            expect(refetch).toBeNull();
-        });
-        // after rollback, no lasting side-effects
-    });
-});
+);

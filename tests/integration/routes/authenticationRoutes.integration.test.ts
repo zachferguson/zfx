@@ -2,6 +2,19 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 
+/**
+ * @file Integration tests for authenticationRoutes.
+ *
+ * Verifies the authentication routing layer, ensuring middleware and controllers
+ * are properly invoked with expected behavior. Uses a real Express app with mocked
+ * controllers and middleware.
+ *
+ * Scenarios covered:
+ * - Registration validation and success
+ * - Login validation, invalid credentials, and success
+ * - Protected route access with verifyToken middleware
+ */
+
 vi.mock("../../../src/controllers/authenticationController", () => {
     const { validationResult } =
         require("express-validator") as typeof import("express-validator");
@@ -64,91 +77,104 @@ describe("authenticationRoutes (integration)", () => {
         vi.clearAllMocks();
     });
 
-    it("POST /auth/login returns 400 for missing fields (validator runs)", async () => {
-        const res = await request(app).post("/auth/login").send({});
-        expect(res.status).toBe(400);
-        expect(res.body.errors).toBeDefined();
-        // Note: controller does the validation check, so it *is* invoked.
-        expect(Controller.login).toHaveBeenCalledTimes(1);
-        expect(verifyToken).not.toHaveBeenCalled(); // public route
-    });
-
-    it("POST /auth/register returns 400 for missing fields (validator runs)", async () => {
-        const res = await request(app).post("/auth/register").send({});
-        expect(res.status).toBe(400);
-        expect(res.body.errors).toBeDefined();
-        expect(Controller.register).toHaveBeenCalledTimes(1);
-        expect(verifyToken).not.toHaveBeenCalled(); // public route
-    });
-
-    it("POST /auth/register returns 201 for valid registration", async () => {
-        const username = unique("user");
-        const email = `${username}@example.com`;
-
-        const res = await request(app).post("/auth/register").send({
-            username,
-            password: STRONG_PWD,
-            email,
-            site: SITE,
-            name: "Test User",
+    describe("POST /auth/login", () => {
+        // Should return 400 when required login fields are missing
+        it("returns 400 for missing fields (validator runs)", async () => {
+            const res = await request(app).post("/auth/login").send({});
+            expect(res.status).toBe(400);
+            expect(res.body.errors).toBeDefined();
+            // Note: controller does the validation check, so it *is* invoked.
+            expect(Controller.login).toHaveBeenCalledTimes(1);
+            expect(verifyToken).not.toHaveBeenCalled(); // public route
         });
 
-        expect(res.status).toBe(201);
-        expect(res.body.user).toEqual({ username, email });
-        expect(Controller.register).toHaveBeenCalledTimes(1);
-        expect(verifyToken).not.toHaveBeenCalled(); // public route
-    });
+        // Should return 401 when credentials are invalid
+        it("returns 401 for invalid credentials", async () => {
+            const res = await request(app).post("/auth/login").send({
+                username: "no_such_user",
+                password: "wrong",
+                site: SITE,
+            });
 
-    it("POST /auth/login returns 401 for invalid credentials", async () => {
-        const res = await request(app).post("/auth/login").send({
-            username: "no_such_user",
-            password: "wrong",
-            site: SITE,
+            expect(res.status).toBe(401);
+            expect(res.body.error).toBeDefined();
+            expect(Controller.login).toHaveBeenCalledTimes(1);
+            expect(verifyToken).not.toHaveBeenCalled(); // public route
         });
 
-        expect(res.status).toBe(401);
-        expect(res.body.error).toBeDefined();
-        expect(Controller.login).toHaveBeenCalledTimes(1);
-        expect(verifyToken).not.toHaveBeenCalled(); // public route
+        // Should return 200 and token when credentials are valid
+        it("returns 200 and token for valid credentials", async () => {
+            const username = unique("login");
+
+            const res = await request(app).post("/auth/login").send({
+                username,
+                password: STRONG_PWD,
+                site: SITE,
+            });
+
+            expect(res.status).toBe(200);
+            expect(res.body.user).toMatchObject({ username, site: SITE });
+            expect(typeof res.body.token).toBe("string");
+            expect(res.body.token.length).toBeGreaterThan(0);
+            expect(Controller.login).toHaveBeenCalledTimes(1);
+            expect(verifyToken).not.toHaveBeenCalled(); // public route
+        });
     });
 
-    it("POST /auth/login returns 200 and token for valid credentials", async () => {
-        const username = unique("login");
-
-        const res = await request(app).post("/auth/login").send({
-            username,
-            password: STRONG_PWD,
-            site: SITE,
+    describe("POST /auth/register", () => {
+        // Should return 400 when required registration fields are missing
+        it("returns 400 for missing fields (validator runs)", async () => {
+            const res = await request(app).post("/auth/register").send({});
+            expect(res.status).toBe(400);
+            expect(res.body.errors).toBeDefined();
+            expect(Controller.register).toHaveBeenCalledTimes(1);
+            expect(verifyToken).not.toHaveBeenCalled(); // public route
         });
 
-        expect(res.status).toBe(200);
-        expect(res.body.user).toMatchObject({ username, site: SITE });
-        expect(typeof res.body.token).toBe("string");
-        expect(res.body.token.length).toBeGreaterThan(0);
-        expect(Controller.login).toHaveBeenCalledTimes(1);
-        expect(verifyToken).not.toHaveBeenCalled(); // public route
+        // Should return 201 when registration succeeds
+        it("returns 201 for valid registration", async () => {
+            const username = unique("user");
+            const email = `${username}@example.com`;
+
+            const res = await request(app).post("/auth/register").send({
+                username,
+                password: STRONG_PWD,
+                email,
+                site: SITE,
+                name: "Test User",
+            });
+
+            expect(res.status).toBe(201);
+            expect(res.body.user).toEqual({ username, email });
+            expect(Controller.register).toHaveBeenCalledTimes(1);
+            expect(verifyToken).not.toHaveBeenCalled(); // public route
+        });
     });
 
-    it("GET /auth/profile returns 401 when verifyToken blocks", async () => {
-        (
-            verifyToken as unknown as ReturnType<typeof vi.fn>
-        ).mockImplementationOnce((_req, res) =>
-            res.status(401).json({ error: "Unauthorized" })
-        );
+    describe("GET /auth/profile", () => {
+        // Should return 401 when verifyToken blocks the request
+        it("returns 401 when verifyToken blocks", async () => {
+            (
+                verifyToken as unknown as ReturnType<typeof vi.fn>
+            ).mockImplementationOnce((_req, res) =>
+                res.status(401).json({ error: "Unauthorized" })
+            );
 
-        const res = await request(app).get("/auth/profile");
+            const res = await request(app).get("/auth/profile");
 
-        expect(res.status).toBe(401);
-        expect(res.body.error).toBe("Unauthorized");
-    });
+            expect(res.status).toBe(401);
+            expect(res.body.error).toBe("Unauthorized");
+        });
 
-    it("GET /auth/profile returns 200 with verifyToken passing and attaches user", async () => {
-        const res = await request(app)
-            .get("/auth/profile")
-            .set("Authorization", "Bearer mock.jwt.token");
+        // Should return 200 and attach user when verifyToken passes
+        it("returns 200 with verifyToken passing and attaches user", async () => {
+            const res = await request(app)
+                .get("/auth/profile")
+                .set("Authorization", "Bearer mock.jwt.token");
 
-        expect(res.status).toBe(200);
-        expect(res.body.user).toEqual({ id: 1, username: "mockuser" });
-        expect(verifyToken).toHaveBeenCalledTimes(1);
+            expect(res.status).toBe(200);
+            expect(res.body.user).toEqual({ id: 1, username: "mockuser" });
+            expect(verifyToken).toHaveBeenCalledTimes(1);
+        });
     });
 });
