@@ -107,6 +107,7 @@ vi.mock("../../../src/db/connection", () => ({ default: {} }));
 
 // If the wired router reads env via a helper, provide a stable value
 vi.mock("../../../src/utils/requireEnv", () => ({
+    default: vi.fn(() => "test-key"),
     requireEnv: vi.fn(() => "test-key"),
 }));
 

@@ -1,4 +1,3 @@
-// src/services/blogsService.ts
 import db from "../db/connection";
 import type { IDatabase, ITask } from "pg-promise";
 import { Blog } from "../types/blogsModel";

@@ -5,19 +5,7 @@ import { PgOrderService } from "../services/orderService";
 import { NodeMailerEmailService } from "../services/emailService";
 import db from "../db/connection";
 import { STORE_EMAILS } from "../config/storeEmails";
-
-/**
- * Reads a required environment variable or throws at startup.
- *
- * @param {string} key - Environment variable name.
- * @returns {string} The non-empty environment value.
- * @throws {Error} If the variable is missing.
- */
-function requireEnv(key: string): string {
-    const v = process.env[key];
-    if (!v) throw new Error(`${key} is missing`);
-    return v;
-}
+import requireEnv from "../utils/requireEnv";
 
 // --- Composition root: build concrete services and controller ---
 const printify = new PrintifyService(requireEnv("PRINTIFY_API_KEY"));

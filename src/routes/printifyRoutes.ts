@@ -1,4 +1,3 @@
-// src/routes/printifyRoutes.ts
 import express from "express";
 import {
     validateGetProducts,
