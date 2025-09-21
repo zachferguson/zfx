@@ -1,12 +1,75 @@
 import Stripe from "stripe";
 
+export interface IStripeSecretResolver {
+    (storeId: string): string | undefined;
+}
+
+export interface IStripeCtor {
+    new (
+        secretKey: string,
+        config: ConstructorParameters<typeof Stripe>[1]
+    ): Stripe;
+}
+
+export interface IStripeService {
+    getStripeClient(storeId: string): Stripe;
+    createPaymentIntent(
+        storeId: string,
+        amount: number,
+        currency: string
+    ): Promise<string | null>;
+}
+
+export class StripeService implements IStripeService {
+    constructor(
+        private readonly getSecretForStore: IStripeSecretResolver,
+        private readonly StripeClass: IStripeCtor = Stripe
+    ) {}
+
+    getStripeClient(storeId: string): Stripe {
+        const secretKey = this.getSecretForStore(storeId);
+        if (!secretKey) {
+            throw new Error(`No Stripe API key found for store: ${storeId}`);
+        }
+        const stripeConfig = { apiVersion: "2023-10-16" } as const;
+        return new this.StripeClass(
+            secretKey,
+            stripeConfig as unknown as Stripe.StripeConfig
+        );
+    }
+
+    async createPaymentIntent(
+        storeId: string,
+        amount: number,
+        currency: string
+    ): Promise<string | null> {
+        try {
+            const stripe = this.getStripeClient(storeId);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount,
+                currency,
+                payment_method_types: ["card"],
+            });
+            return paymentIntent.client_secret;
+        } catch (error) {
+            // keep original log shape for tests
+            console.error(`Error creating PaymentIntent for ${storeId}`, error);
+            throw error as Error;
+        }
+    }
+}
+
 /**
  * Mapping of store IDs to their Stripe secret keys, loaded from environment variables.
  * Add new stores as needed.
  */
-const stripeKeys: Record<string, string> = {
-    developerhorizon: process.env.STRIPE_SECRET_DEVELOPERHORIZON!,
+const stripeKeys: Record<string, string | undefined> = {
+    developerhorizon: process.env.STRIPE_SECRET_DEVELOPERHORIZON,
 };
+
+function envSecretResolver(storeId: string): string | undefined {
+    return stripeKeys[storeId];
+}
 
 /**
  * Returns a Stripe client instance for the given store.
@@ -15,15 +78,12 @@ const stripeKeys: Record<string, string> = {
  * @param {string} storeId - The store identifier (e.g., 'developerhorizon').
  * @returns {Stripe} - Configured Stripe client instance.
  */
-export const getStripeClient = (storeId: string): Stripe => {
-    const secretKey = stripeKeys[storeId];
-    if (!secretKey) {
-        throw new Error(`No Stripe API key found for store: ${storeId}`);
-    }
-    return new Stripe(secretKey, {
-        apiVersion: "2023-10-16" as any,
-    });
-};
+function defaultStripeService(): StripeService {
+    return new StripeService(envSecretResolver, Stripe);
+}
+
+export const getStripeClient = (storeId: string): Stripe =>
+    defaultStripeService().getStripeClient(storeId);
 
 /**
  * Creates a Stripe PaymentIntent for the given store, amount, and currency.
@@ -35,21 +95,9 @@ export const getStripeClient = (storeId: string): Stripe => {
  * @returns {Promise<string | null>} - The client secret for the PaymentIntent, or null if not available.
  * @throws {Error} - If the PaymentIntent creation fails or the store is not configured.
  */
-export const createPaymentIntent = async (
+export const createPaymentIntent = (
     storeId: string,
     amount: number,
     currency: string
-): Promise<string | null> => {
-    try {
-        const stripe = getStripeClient(storeId);
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount,
-            currency,
-            payment_method_types: ["card"],
-        });
-        return paymentIntent.client_secret;
-    } catch (error) {
-        console.error(`Error creating PaymentIntent for ${storeId}`, error);
-        throw error;
-    }
-};
+): Promise<string | null> =>
+    defaultStripeService().createPaymentIntent(storeId, amount, currency);

@@ -4,22 +4,22 @@ import request from "supertest";
 
 const h = vi.hoisted(() => ({
     ctrl: {
-        getBlogs: vi.fn((req, res) => res.json([{ id: 1, title: "Hello" }])),
+        getBlogs: vi.fn((_req, res) => res.json([{ id: 1, title: "Hello" }])),
         getSingleBlogById: vi.fn((req, res) =>
             res.json({ id: Number(req.params.id) })
         ),
-        createNewBlog: vi.fn((req, res) => res.status(201).json({ ok: true })),
-        getArticles: vi.fn((req, res) => res.json([{ id: 1, title: "A1" }])),
+        createNewBlog: vi.fn((_req, res) => res.status(201).json({ ok: true })),
+        getArticles: vi.fn((_req, res) => res.json([{ id: 1, title: "A1" }])),
         getSingleArticleById: vi.fn((req, res) =>
             res.json({ id: Number(req.params.id) })
         ),
-        createNewArticle: vi.fn((req, res) =>
+        createNewArticle: vi.fn((_req, res) =>
             res.status(201).json({ ok: true })
         ),
-        addDailyMetrics: vi.fn((req, res) =>
+        addDailyMetrics: vi.fn((_req, res) =>
             res.status(200).json({ ok: true })
         ),
-        getDailyMetrics: vi.fn((req, res) =>
+        getDailyMetrics: vi.fn((_req, res) =>
             res.json([{ date: "2025-09-01" }])
         ),
     },

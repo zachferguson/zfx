@@ -1,5 +1,8 @@
 import express from "express";
-import { handleCreatePaymentIntent } from "../controllers/paymentController";
+import {
+    type PaymentControllerHandlers,
+    handleCreatePaymentIntent as defaultHandle,
+} from "../controllers/paymentController";
 import { validateCreatePaymentIntent } from "../validators/paymentValidators";
 
 /**
@@ -7,7 +10,17 @@ import { validateCreatePaymentIntent } from "../validators/paymentValidators";
  *
  * @module routes/paymentRoutes
  */
-const router = express.Router();
+export function createPaymentRouter(controller: PaymentControllerHandlers) {
+    const router = express.Router();
+
+    router.post(
+        "/create-payment-intent",
+        validateCreatePaymentIntent,
+        controller.handleCreatePaymentIntent
+    );
+
+    return router;
+}
 
 /**
  * Creates a Stripe payment intent for the given store, amount, and currency.
@@ -16,10 +29,8 @@ const router = express.Router();
  * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and the client secret. On error, responds with 400 (validation) or 500 (server error).
  */
-router.post(
-    "/create-payment-intent",
-    validateCreatePaymentIntent,
-    handleCreatePaymentIntent
-);
-
-export default router;
+// Default export: keep existing behavior using default-wired controller
+const defaultRouter = createPaymentRouter({
+    handleCreatePaymentIntent: defaultHandle,
+});
+export default defaultRouter;

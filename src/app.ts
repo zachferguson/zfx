@@ -2,10 +2,10 @@
 import express from "express";
 import cors from "cors";
 
-import zachtothegymRoutes from "./routes/zachtothegymRoutes";
+import zachtothegymRoutes from "./routes/zachtothegymRoutes.wired";
 import printifyRoutes from "./routes/printifyRoutes.wired";
 import authenticationRoutes from "./routes/authenticationRoutes.wired";
-import paymentRoutes from "./routes/paymentRoutes";
+import paymentRoutes from "./routes/paymentRoutes.wired";
 
 const app = express();
 
