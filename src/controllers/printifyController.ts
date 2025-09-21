@@ -31,12 +31,12 @@ export const createPrintifyController = (
          * Gets all Printify products for a given store.
          *
          * @route GET /printify/:id/products
-         * @param {Request} req - Express request object, expects store id in params
-         * @param {Response} res - Express response object
-         * @returns {Promise<void>} Sends response via res object.
-         * @note On success, responds with 200 and an array of products. On error, responds with 400 (validation) or 500 (server error) and an error message.
+         * @param {Request} req - Express request (expects store id in params)
+         * @param {Response} res - Express response
+         * @returns Sends response via res object.
+         * @note On success: 200 with products. On error: 400 (validation) or 500 (server error).
          */
-        getProducts: async (req: Request<ParamsDictionary>, res: Response) => {
+        getProducts: async (req: Request<{ id: string }>, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 res.status(400).json({
@@ -47,7 +47,7 @@ export const createPrintifyController = (
                 return;
             }
             try {
-                const storeId = req.params.id;
+                const { id: storeId } = req.params;
                 if (!storeId) {
                     res.status(400).json({
                         error: "Missing store id in request parameters.",
@@ -69,14 +69,14 @@ export const createPrintifyController = (
         /**
          * Gets Printify shipping options for a given store and order details.
          *
-         * @route POST /printify/:id/shipping
-         * @param {Request} req - expects store id in params and ShippingRatesRequestBody in body
-         * @param {Response} res - Express response object
-         * @returns {Promise<void>} Sends response via res object.
-         * @note On success, responds with 200 and shipping options. On error, responds with 400 (validation) or 500 (server error) and an error message.
+         * @route POST /printify/:id/shipping-options
+         * @param {Request} req - Express request (store id in params, ShippingRatesRequestBody in body)
+         * @param {Response} res - Express response
+         * @returns Sends response via res object.
+         * @note On success: 200 with options. On error: 400 (validation) or 500 (server error).
          */
         getShippingOptions: async (
-            req: Request<ParamsDictionary, unknown, ShippingRatesRequestBody>,
+            req: Request<{ id: string }, unknown, ShippingRatesRequestBody>,
             res: Response
         ) => {
             const errors = validationResult(req);
@@ -90,7 +90,7 @@ export const createPrintifyController = (
             }
             try {
                 const body = req.body;
-                const storeId = req.params.id;
+                const { id: storeId } = req.params;
                 if (!storeId) {
                     res.status(400).json({
                         error: "Missing store id in request parameters.",
@@ -115,16 +115,16 @@ export const createPrintifyController = (
         /**
          * Submits a new order to Printify and saves it in the database.
          *
-         * @route POST /printify/order
-         * @param {Request} req - expects storeId, order, and stripe_payment_id in body
-         * @param {Response} res - Express response object
-         * @returns {Promise<void>} Sends response via res object.
-         * @note In TypeScript, Express handlers should omit the return type for flexibility.
+         * @route POST /printify/submit-order
+         * @param {Request} req - Express request (expects storeId, order, stripe_payment_id in body)
+         * @param {Response} res - Express response
+         * @returns Sends response via res object.
+         * @note Common TS convention for Express handlers is to omit explicit return types.
          */
         submitOrder: async (
             req: Request<ParamsDictionary, unknown, SubmitOrderBody>,
             res: Response
-        ): Promise<void> => {
+        ) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 res.status(400).json({
@@ -211,9 +211,9 @@ export const createPrintifyController = (
          * Gets the status and details of a Printify order for a customer.
          *
          * @route POST /printify/order-status
-         * @param {Request} req - expects orderId and email in body
-         * @param {Response} res - Express response object
-         * @returns {Promise<void>} Sends response via res object.
+         * @param {Request} req - Express request (expects orderId and email in body)
+         * @param {Response} res - Express response
+         * @returns Sends response via res object.
          */
         getOrderStatus: async (
             req: Request<ParamsDictionary, unknown, GetOrderStatusBody>,
