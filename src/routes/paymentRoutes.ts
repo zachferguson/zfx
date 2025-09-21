@@ -1,8 +1,5 @@
 import express from "express";
-import {
-    type PaymentControllerHandlers,
-    handleCreatePaymentIntent as defaultHandle,
-} from "../controllers/paymentController";
+import type { PaymentControllerHandlers } from "../controllers/paymentController";
 import { validateCreatePaymentIntent } from "../validators/paymentValidators";
 
 /**
@@ -29,8 +26,4 @@ export function createPaymentRouter(controller: PaymentControllerHandlers) {
  * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and the client secret. On error, responds with 400 (validation) or 500 (server error).
  */
-// Default export: keep existing behavior using default-wired controller
-const defaultRouter = createPaymentRouter({
-    handleCreatePaymentIntent: defaultHandle,
-});
-export default defaultRouter;
+export default createPaymentRouter;

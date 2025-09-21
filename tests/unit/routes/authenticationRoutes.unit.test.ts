@@ -27,11 +27,15 @@ vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
     verifyToken: h.mw.verifyToken,
 }));
 
-import router from "../../../src/routes/authenticationRoutes";
+import createRouter from "../../../src/routes/authenticationRoutes";
 
 function makeApp() {
     const app = express();
     app.use(express.json());
+    const router = createRouter(
+        { login: h.ctrl.login as any, register: h.ctrl.register as any },
+        { verifyToken: h.mw.verifyToken as any }
+    );
     app.use("/auth", router);
     return app;
 }
@@ -73,7 +77,7 @@ describe("authenticationRoutes (unit)", () => {
     // ---- Protected route ----
     it("GET /auth/profile -> 401 when verifyToken blocks", async () => {
         // First call of verifyToken responds 401 and does NOT call next()
-        h.mw.verifyToken.mockImplementationOnce((req, res) => {
+        h.mw.verifyToken.mockImplementationOnce((_req, res) => {
             res.status(401).json({ message: "Access token is missing." });
         });
         const res = await request(app).get("/auth/profile");
@@ -86,7 +90,7 @@ describe("authenticationRoutes (unit)", () => {
 
     it("GET /auth/profile -> 200 when verifyToken passes through and sets user", async () => {
         h.mw.verifyToken.mockImplementationOnce((req, _res, next) => {
-            (req).user = { id: 1, username: "zach", role: "user" };
+            req.user = { id: 1, username: "zach", role: "user" };
             next();
         });
         const res = await request(app).get("/auth/profile");

@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-import {
-    register,
-    login,
-    verifyToken,
-} from "../../../src/controllers/authenticationController";
+import { createAuthenticationController } from "../../../src/controllers/authenticationController";
 import {
     validateRegister,
     validateLogin,
@@ -13,6 +9,7 @@ import {
 import { AUTHENTICATION_ERRORS } from "../../../src/config/authenticationErrors";
 import * as AuthSvc from "../../../src/services/authenticationService";
 import * as JWT from "jsonwebtoken";
+import { createAuthMiddleware } from "../../../src/middleware/authenticationMiddleware";
 
 /**
  * @file Integration tests for the authenticationController.
@@ -41,10 +38,19 @@ const authSvc = vi.mocked(AuthSvc);
 const jwt = vi.mocked(JWT as any);
 
 function makeApp() {
+    // Ensure secret is present before constructing middleware
+    process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
     const app = express();
     app.use(express.json());
-    app.post("/auth/register", validateRegister, register);
-    app.post("/auth/login", validateLogin, login);
+    const controller = createAuthenticationController({
+        registerUser: AuthSvc.registerUser as unknown as any,
+        authenticateUser: AuthSvc.authenticateUser as unknown as any,
+    });
+    app.post("/auth/register", validateRegister, controller.register);
+    app.post("/auth/login", validateLogin, controller.login);
+    const { verifyToken } = createAuthMiddleware(
+        process.env.JWT_SECRET || "test-secret"
+    );
     app.get("/protected", verifyToken, (req, res) => {
         res.json({ ok: true, user: (req as any).user });
     });
@@ -57,6 +63,7 @@ describe("authenticationController (integration)", () => {
     beforeEach(() => {
         app = makeApp();
         vi.clearAllMocks();
+        process.env.JWT_SECRET = "test-secret";
     });
 
     describe("POST /auth/register", () => {
@@ -205,27 +212,27 @@ describe("authenticationController (integration)", () => {
         it("401 when no Authorization header", async () => {
             const res = await request(app).get("/protected");
             expect(res.status).toBe(401);
-            expect(res.body.error).toBe(AUTHENTICATION_ERRORS.MISSING_TOKEN);
+            expect(res.body.message).toBe("Access token is missing.");
             expect(jwt.verify).not.toHaveBeenCalled();
         });
 
         // Should return 403 when JWT verification fails
         it("403 when jwt.verify throws", async () => {
-            (jwt.default.verify).mockImplementation(() => {
+            jwt.default.verify.mockImplementation(() => {
                 throw new Error("bad token");
             });
             const res = await request(app)
                 .get("/protected")
                 .set("Authorization", "Bearer not.a.jwt");
             expect(res.status).toBe(403);
-            expect(res.body.error).toBe(AUTHENTICATION_ERRORS.INVALID_TOKEN);
+            expect(res.body.message).toBe("Invalid or expired token.");
             expect(jwt.default.verify).toHaveBeenCalled();
         });
 
         // Should return 200 and attach user when JWT verifies
         it("200 when jwt verifies and attaches user", async () => {
             const decoded = { sub: "u1", role: "user" };
-            (jwt.default.verify).mockReturnValue(decoded as any);
+            jwt.default.verify.mockReturnValue(decoded as any);
             const res = await request(app)
                 .get("/protected")
                 .set("Authorization", "Bearer real.jwt.here");

@@ -42,20 +42,19 @@ import * as Bcrypt from "bcryptjs";
 import * as JWT from "jsonwebtoken";
 const bcrypt = vi.mocked(Bcrypt as any);
 const jwt = vi.mocked(JWT as any);
-import {
-    registerUser,
-    authenticateUser,
-} from "../../../src/services/authenticationService";
+import { AuthenticationService } from "../../../src/services/authenticationService";
 
 // tiny helper for TS to use mock.* safely
-const asMock = <T extends Function>(fn: unknown) => fn as Mock;
+const asMock = (fn: unknown) => fn as Mock;
 
 describe("authenticationService (unit)", () => {
     const OLD_ENV = process.env;
+    let svc: AuthenticationService;
 
     beforeEach(() => {
         vi.clearAllMocks();
         process.env = { ...OLD_ENV, JWT_SECRET: "test-secret" };
+        svc = new AuthenticationService(db as any, "test-secret", 10);
     });
 
     afterEach(() => {
@@ -65,6 +64,8 @@ describe("authenticationService (unit)", () => {
     describe("registerUser", () => {
         it("hashes password with configured rounds and inserts user", async () => {
             process.env.BCRYPT_SALT_ROUNDS = "12";
+            // Rebuild service with 12 rounds to reflect configured value
+            svc = new AuthenticationService(db as any, "test-secret", 12);
             asMock(bcrypt.hash).mockResolvedValue("hashed_pw");
             asMock(db.one).mockResolvedValue({
                 id: 1,
@@ -73,7 +74,7 @@ describe("authenticationService (unit)", () => {
                 role: "user",
                 site: "site-1",
             });
-            const user = await registerUser(
+            const user = await svc.registerUser(
                 "alice",
                 "pw123",
                 "a@b.com",
@@ -81,7 +82,9 @@ describe("authenticationService (unit)", () => {
             );
             expect(bcrypt.hash).toHaveBeenCalledWith("pw123", 12);
             expect(db.one).toHaveBeenCalledTimes(1);
-            const [sql, params] = asMock(db.one).mock.calls[0];
+            const call0 = asMock(db.one).mock.calls[0] as any[];
+            const sql = call0 && call0[0];
+            const params = call0 && call0[1];
             expect(sql).toContain("INSERT INTO authentication.users");
             expect(sql).toContain("(username, password_hash, email, site)");
             expect(sql).toContain("RETURNING id, username, email, role, site");
@@ -104,14 +107,14 @@ describe("authenticationService (unit)", () => {
                 role: "admin",
                 site: "site-2",
             });
-            await registerUser("bob", "pw", "b@c.com", "site-2");
+            await svc.registerUser("bob", "pw", "b@c.com", "site-2");
             expect(bcrypt.hash).toHaveBeenCalledWith("pw", 10);
         });
         it("throws friendly error on unique violation (23505)", async () => {
             asMock(bcrypt.hash).mockResolvedValue("hpw");
             asMock(db.one).mockRejectedValue({ code: "23505" });
             await expect(
-                registerUser("dup", "pw", "dup@x.com", "site-1")
+                svc.registerUser("dup", "pw", "dup@x.com", "site-1")
             ).rejects.toThrow(
                 "Username or email already exists for this site."
             );
@@ -120,7 +123,7 @@ describe("authenticationService (unit)", () => {
             asMock(bcrypt.hash).mockResolvedValue("hpw");
             asMock(db.one).mockRejectedValue(new Error("db-down"));
             await expect(
-                registerUser("c", "pw", "c@x.com", "site-1")
+                svc.registerUser("c", "pw", "c@x.com", "site-1")
             ).rejects.toThrow("db-down");
         });
     });
@@ -137,9 +140,11 @@ describe("authenticationService (unit)", () => {
             });
             asMock(bcrypt.compare).mockResolvedValue(true);
             asMock(jwt.sign).mockReturnValue("signed.jwt.token");
-            const result = await authenticateUser("carol", "pw!", "site-1");
+            const result = await svc.authenticateUser("carol", "pw!", "site-1");
             expect(db.oneOrNone).toHaveBeenCalledTimes(1);
-            const [sql, params] = asMock(db.oneOrNone).mock.calls[0];
+            const call1 = asMock(db.oneOrNone).mock.calls[0] as any[];
+            const sql = call1 && call1[0];
+            const params = call1 && call1[1];
             expect(sql).toContain("FROM authentication.users");
             expect(sql).toContain("WHERE username = $1 AND site = $2");
             expect(params).toEqual(["carol", "site-1"]);
@@ -167,7 +172,7 @@ describe("authenticationService (unit)", () => {
         });
         it("returns null when user not found", async () => {
             asMock(db.oneOrNone).mockResolvedValue(null);
-            const result = await authenticateUser("nobody", "pw", "site-1");
+            const result = await svc.authenticateUser("nobody", "pw", "site-1");
             expect(result).toBeNull();
             expect(bcrypt.compare).not.toHaveBeenCalled();
             expect(jwt.sign).not.toHaveBeenCalled();
@@ -182,7 +187,7 @@ describe("authenticationService (unit)", () => {
                 password_hash: "hash",
             });
             asMock(bcrypt.compare).mockResolvedValue(false);
-            const result = await authenticateUser("dan", "wrong", "site-1");
+            const result = await svc.authenticateUser("dan", "wrong", "site-1");
             expect(result).toBeNull();
             expect(jwt.sign).not.toHaveBeenCalled();
         });

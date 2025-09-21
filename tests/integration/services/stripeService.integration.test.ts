@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import dotenv from "dotenv";
-import {
-    createPaymentIntent,
-    getStripeClient,
-} from "../../../src/services/stripeService";
+import { StripeService } from "../../../src/services/stripeService";
 
 /**
  * @file Integration tests for stripeService.
@@ -31,7 +28,12 @@ describe.runIf(CAN_RUN)("stripeService (integration)", () => {
     describe("getStripeClient", () => {
         // Should return a real Stripe client instance with paymentIntents.create available
         it("getStripeClient returns a real Stripe client", () => {
-            const client = getStripeClient(storeId);
+            const svc = new StripeService((id) =>
+                id === storeId
+                    ? process.env.STRIPE_SECRET_DEVELOPERHORIZON
+                    : undefined
+            );
+            const client = svc.getStripeClient(storeId);
             expect(client).toBeDefined();
             expect(typeof client.paymentIntents.create).toBe("function");
         });
@@ -40,7 +42,12 @@ describe.runIf(CAN_RUN)("stripeService (integration)", () => {
     describe("createPaymentIntent", () => {
         // Should create a real payment intent and return a non-empty clientSecret
         it("createPaymentIntent creates a real payment intent", async () => {
-            const clientSecret = await createPaymentIntent(
+            const svc = new StripeService((id) =>
+                id === storeId
+                    ? process.env.STRIPE_SECRET_DEVELOPERHORIZON
+                    : undefined
+            );
+            const clientSecret = await svc.createPaymentIntent(
                 storeId,
                 testAmount,
                 testCurrency
@@ -54,8 +61,9 @@ describe.runIf(CAN_RUN)("stripeService (integration)", () => {
 
         // Should throw when called with an invalid store/key configuration
         it("createPaymentIntent throws with invalid key", async () => {
+            const svc = new StripeService(() => undefined);
             await expect(
-                createPaymentIntent("badstore", testAmount, testCurrency)
+                svc.createPaymentIntent("badstore", testAmount, testCurrency)
             ).rejects.toThrow();
         });
     });

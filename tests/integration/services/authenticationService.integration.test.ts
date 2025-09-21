@@ -22,7 +22,7 @@ import path from "node:path";
  * - Real DB: register + authenticate inside a tx, then rollback leaves no side effects
  */
 
-type AuthSvc = typeof import("../../../src/services/authenticationService");
+import { AuthenticationService } from "../../../src/services/authenticationService";
 
 const REAL_DB = !!(
     process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length
@@ -31,8 +31,7 @@ const REAL_DB = !!(
 // --- PG-MEM SUITE (always) -----------------------------------------------------
 describe("authenticationService (integration, pg-mem / no real DB)", () => {
     let handles: any;
-    let registerUser: AuthSvc["registerUser"];
-    let authenticateUser: AuthSvc["authenticateUser"];
+    let svc: AuthenticationService;
 
     // keep env around to restore later
     const oldJwt = process.env.JWT_SECRET;
@@ -57,9 +56,15 @@ describe("authenticationService (integration, pg-mem / no real DB)", () => {
         vi.doMock(connAbsPath, () => ({ default: handles.db }));
 
         // Import SUT after mocking so it uses pg-mem
-        const svc = await import("../../../src/services/authenticationService");
-        registerUser = svc.registerUser;
-        authenticateUser = svc.authenticateUser;
+        const svcMod = await import(
+            "../../../src/services/authenticationService"
+        );
+        const { default: db } = await import("../../../src/db/connection");
+        svc = new svcMod.AuthenticationService(
+            db as any,
+            "test-secret",
+            parseInt(process.env.BCRYPT_SALT_ROUNDS || "4", 10)
+        );
     });
 
     async function resetTables() {
@@ -86,7 +91,7 @@ describe("authenticationService (integration, pg-mem / no real DB)", () => {
     describe("registerUser", () => {
         // Should insert a user and not return the password hash
         it("registerUser inserts a user (no password returned)", async () => {
-            const u = await registerUser(
+            const u = await svc.registerUser(
                 "alice",
                 "pw",
                 "alice@test.com",
@@ -106,8 +111,8 @@ describe("authenticationService (integration, pg-mem / no real DB)", () => {
     describe("authenticateUser", () => {
         // Should return token + user with correct credentials
         it("authenticateUser returns token + user with correct credentials", async () => {
-            await registerUser("bob", "secret", "bob@test.com", "siteA");
-            const res = await authenticateUser("bob", "secret", "siteA");
+            await svc.registerUser("bob", "secret", "bob@test.com", "siteA");
+            const res = await svc.authenticateUser("bob", "secret", "siteA");
             expect(res).toBeTruthy();
             expect(res!.token).toBeTruthy();
             expect(res!.user.username).toBe("bob");
@@ -115,8 +120,8 @@ describe("authenticationService (integration, pg-mem / no real DB)", () => {
 
         // Should return null for incorrect password
         it("authenticateUser returns null for wrong password", async () => {
-            await registerUser("carol", "right", "carol@test.com", "siteA");
-            const res = await authenticateUser("carol", "wrong", "siteA");
+            await svc.registerUser("carol", "right", "carol@test.com", "siteA");
+            const res = await svc.authenticateUser("carol", "wrong", "siteA");
             expect(res).toBeNull();
         });
     });
@@ -126,8 +131,7 @@ describe("authenticationService (integration, pg-mem / no real DB)", () => {
 describe.runIf(REAL_DB)(
     "authenticationService (integration, real DB with rollback)",
     () => {
-        let registerUser: AuthSvc["registerUser"];
-        let authenticateUser: AuthSvc["authenticateUser"];
+        let svc: AuthenticationService;
         let realDb: any;
 
         const ROLLBACK = new Error("__ROLLBACK__");
@@ -142,11 +146,14 @@ describe.runIf(REAL_DB)(
 
             // Import real connection + SUT
             realDb = (await import("../../../src/db/connection")).default;
-            const svc = await import(
+            const svcMod = await import(
                 "../../../src/services/authenticationService"
             );
-            registerUser = svc.registerUser;
-            authenticateUser = svc.authenticateUser;
+            svc = new svcMod.AuthenticationService(
+                realDb,
+                process.env.JWT_SECRET || "test-secret",
+                parseInt(process.env.BCRYPT_SALT_ROUNDS || "8", 10)
+            );
         });
 
         afterAll(() => {
@@ -178,7 +185,7 @@ describe.runIf(REAL_DB)(
                 const password = "pw123";
 
                 await withTxRollback(async (t) => {
-                    const u = await registerUser(
+                    const u = await svc.registerUser(
                         username,
                         password,
                         email,
@@ -187,7 +194,7 @@ describe.runIf(REAL_DB)(
                     );
                     expect(u.username).toBe(username);
 
-                    const auth = await authenticateUser(
+                    const auth = await svc.authenticateUser(
                         username,
                         password,
                         site,
@@ -199,7 +206,11 @@ describe.runIf(REAL_DB)(
                 });
 
                 // After rollback, auth should fail (row not persisted)
-                const after = await authenticateUser(username, password, site);
+                const after = await svc.authenticateUser(
+                    username,
+                    password,
+                    site
+                );
                 expect(after).toBeNull();
             });
         });

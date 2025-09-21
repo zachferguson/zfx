@@ -1,15 +1,5 @@
-import { Router } from "express";
-import {
-    getBlogs,
-    getSingleBlogById,
-    createNewBlog,
-    getArticles,
-    getSingleArticleById,
-    createNewArticle,
-    addDailyMetrics,
-    getDailyMetrics,
-    type ZTGControllerHandlers,
-} from "../controllers/zachtothegymController";
+import { Router, type Response, type NextFunction } from "express";
+import { type ZTGControllerHandlers } from "../controllers/zachtothegymController";
 import {
     validateGetSingleBlogById,
     validateCreateNewBlog,
@@ -18,10 +8,12 @@ import {
     validateAddDailyMetrics,
     validateGetDailyMetrics,
 } from "../validators/zachtothegymValidators";
-import { verifyToken } from "../middleware/authenticationMiddleware";
+// no default-wired middleware here; provided by wired file/tests via factory
+
+import type { AuthRequest } from "../middleware/authenticationMiddleware";
 
 export type AuthMiddlewareHandlers = {
-    verifyToken: typeof verifyToken;
+    verifyToken: (req: AuthRequest, res: Response, next: NextFunction) => void;
 };
 
 export function createZachtothegymRouter(
@@ -107,21 +99,6 @@ export function createZachtothegymRouter(
 
     return router;
 }
-/**
- * Default router using the default-wired controller handlers and verifyToken.
- */
-const defaultRouter = createZachtothegymRouter(
-    {
-        getBlogs,
-        getSingleBlogById,
-        createNewBlog,
-        getArticles,
-        getSingleArticleById,
-        createNewArticle,
-        addDailyMetrics,
-        getDailyMetrics,
-    },
-    { verifyToken }
-);
 
-export default defaultRouter;
+// For convenience, allow default export = factory (matches Printify pattern)
+export default createZachtothegymRouter;

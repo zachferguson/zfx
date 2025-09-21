@@ -49,10 +49,15 @@ describe("stripeService (unit)", () => {
         it("returns a Stripe client using the mapped secret key", async () => {
             // Arrange env before import (stripeKeys is computed on import)
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_test_123";
-            const { getStripeClient } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             // Act
-            const client = getStripeClient("developerhorizon");
+            const client = svc.getStripeClient("developerhorizon");
 
             // Assert: constructor called with correct args & returned our instance
             expect(h.StripeCtor).toHaveBeenCalledTimes(1);
@@ -66,9 +71,10 @@ describe("stripeService (unit)", () => {
         it("throws when no secret key exists for the store", async () => {
             // No env key set
             delete process.env.STRIPE_SECRET_DEVELOPERHORIZON;
-            const { getStripeClient } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService(() => undefined, h.StripeCtor as any);
 
-            expect(() => getStripeClient("developerhorizon")).toThrow(
+            expect(() => svc.getStripeClient("developerhorizon")).toThrow(
                 "No Stripe API key found for store: developerhorizon"
             );
             expect(h.StripeCtor).not.toHaveBeenCalled();
@@ -78,14 +84,19 @@ describe("stripeService (unit)", () => {
     describe("createPaymentIntent", () => {
         it("creates a payment intent and returns client_secret", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_live_abc";
-            const { createPaymentIntent } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             // Make Stripe return a client secret
             h.stripeInstance.paymentIntents.create.mockResolvedValue({
                 client_secret: "pi_secret_123",
             });
 
-            const secret = await createPaymentIntent(
+            const secret = await svc.createPaymentIntent(
                 "developerhorizon",
                 2500,
                 "usd"
@@ -111,14 +122,19 @@ describe("stripeService (unit)", () => {
 
         it("bubbles errors from Stripe", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_x";
-            const { createPaymentIntent } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             h.stripeInstance.paymentIntents.create.mockRejectedValue(
                 new Error("stripe-down")
             );
 
             await expect(
-                createPaymentIntent("developerhorizon", 999, "usd")
+                svc.createPaymentIntent("developerhorizon", 999, "usd")
             ).rejects.toThrow("stripe-down");
         });
     });

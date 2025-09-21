@@ -2,12 +2,15 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "../../../src/middleware/authenticationMiddleware";
+import { createAuthMiddleware } from "../../../src/middleware/authenticationMiddleware";
 
 vi.mock("jsonwebtoken");
 
 function makeApp() {
     const app = express();
+    const { verifyToken } = createAuthMiddleware(
+        process.env.JWT_SECRET || "test-secret"
+    );
     app.get("/protected", verifyToken, (req, res) => {
         res.json({ ok: true, user: (req as any).user });
     });

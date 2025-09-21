@@ -32,13 +32,3 @@ export function createAuthMiddleware(secret: string) {
     };
     return { verifyToken };
 }
-
-// Back-compat default export: resolve secret at request time (test-friendly)
-export const verifyToken = (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-) => {
-    const secret = process.env.JWT_SECRET || "default_secret";
-    return createAuthMiddleware(secret).verifyToken(req, res, next);
-};

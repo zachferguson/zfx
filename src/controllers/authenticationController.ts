@@ -1,11 +1,6 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import type { IAuthenticationService } from "../services/authenticationService";
-import {
-    registerUser,
-    authenticateUser,
-} from "../services/authenticationService";
 import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
-import jwt from "jsonwebtoken";
 import { validationResult, type ValidationError } from "express-validator";
 import type { ParamsDictionary } from "express-serve-static-core";
 import type { RegisterRequestBody, LoginRequestBody } from "../types/auth";
@@ -133,42 +128,3 @@ export const createAuthenticationController = (
         }
     },
 });
-
-// Default-wired handlers (for existing routes/tests)
-// Use function exports so tests that mock the service module can intercept calls.
-const defaultAuth: IAuthenticationService = {
-    registerUser,
-    authenticateUser,
-};
-export const { register, login } = createAuthenticationController(defaultAuth);
-
-/**
- * Middleware to verify the JWT token for protected routes.
- *
- * @route Middleware
- * @param {Request} req - Express request object, expects Authorization header with Bearer token
- * @param {Response} res - Express response object
- * @param {NextFunction} next - Express next middleware function
- * @returns {void}
- */
-export const verifyToken = (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    const token = req.headers["authorization"]?.split(" ")[1];
-
-    if (!token) {
-        res.status(401).json({ error: AUTHENTICATION_ERRORS.MISSING_TOKEN });
-        return;
-    }
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-        // Attach user info to req.user with proper type
-        req.user = decoded as import("../types/user").UserWithoutPassword;
-        next();
-    } catch (_err) {
-        res.status(403).json({ error: AUTHENTICATION_ERRORS.INVALID_TOKEN });
-    }
-};

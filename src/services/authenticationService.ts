@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import db from "../db/connection";
 import type { IDatabase, ITask } from "pg-promise";
 import { User, UserWithoutPassword } from "../types/user";
 
@@ -112,57 +111,3 @@ export class AuthenticationService implements IAuthenticationService {
         return null;
     }
 }
-
-// Helper to get bcrypt salt rounds, reading env at call time for testability
-function getBcryptSaltRounds(): number {
-    return parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10);
-}
-
-// Helper to get JWT secret at call time for testability
-function getJwtSecret(): string {
-    const s = process.env.JWT_SECRET;
-    if (!s) throw new Error("JWT_SECRET is not configured.");
-    return s;
-}
-
-/**
- * Registers a new user in the authentication schema.
- * Optionally runs inside a pg-promise transaction/task when `t` is provided.
- *
- * @param {string} username - The username
- * @param {string} password - The plain text password
- * @param {string} email - The user's email
- * @param {string} site - The site identifier
- * @param {DbOrTx} [t] - Optional pg-promise task/transaction
- * @returns {Promise<UserWithoutPassword>} The created user (without password)
- * @throws {Error} If the username or email already exists for this site, or on DB error
- */
-// Back-compat function exports: delegate to a service instance built with current env
-function getDefaultAuthService(): AuthenticationService {
-    return new AuthenticationService(db, getJwtSecret(), getBcryptSaltRounds());
-}
-
-export const registerUser = (
-    username: string,
-    password: string,
-    email: string,
-    site: string,
-    t?: DbOrTx
-) => getDefaultAuthService().registerUser(username, password, email, site, t);
-
-/**
- * Authenticates a user by username, password, and site.
- * Optionally runs inside a pg-promise transaction/task when `t` is provided.
- *
- * @param {string} username - The username
- * @param {string} password - The plain text password
- * @param {string} site - The site identifier
- * @param {DbOrTx} [t] - Optional pg-promise task/transaction
- * @returns {Promise<{ token: string; user: UserWithoutPassword } | null>} The JWT and user if authenticated, otherwise null
- */
-export const authenticateUser = (
-    username: string,
-    password: string,
-    site: string,
-    t?: DbOrTx
-) => getDefaultAuthService().authenticateUser(username, password, site, t);

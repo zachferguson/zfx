@@ -15,41 +15,27 @@ import request from "supertest";
  * - verifyToken middleware allowing or blocking access
  */
 
-// Mock controllers the routes call
-vi.mock("../../../src/controllers/zachtothegymController", () => {
-    return {
-        getBlogs: vi.fn((_req, res) => res.json([{ id: 1, title: "Hello" }])),
-        getSingleBlogById: vi.fn((req, res) =>
-            res.json({ id: Number(req.params.id) })
-        ),
-        createNewBlog: vi.fn((_req, res) => res.status(201).json({ ok: true })),
-        getArticles: vi.fn((_req, res) => res.json([{ id: 1, title: "A1" }])),
-        getSingleArticleById: vi.fn((req, res) =>
-            res.json({ id: Number(req.params.id) })
-        ),
-        createNewArticle: vi.fn((_req, res) =>
-            res.status(201).json({ ok: true })
-        ),
-        addDailyMetrics: vi.fn((_req, res) =>
-            res.status(200).json({ ok: true })
-        ),
-        getDailyMetrics: vi.fn((_req, res) =>
-            res.json([{ date: "2025-09-01" }])
-        ),
-    };
-});
-
-vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
-    verifyToken: vi.fn((_req, _res, next) => next()),
-}));
-
-import router from "../../../src/routes/zachtothegymRoutes";
-import * as Controller from "../../../src/controllers/zachtothegymController";
-import { verifyToken } from "../../../src/middleware/authenticationMiddleware";
+import createRouter from "../../../src/routes/zachtothegymRoutes";
+const Controller = {
+    getBlogs: vi.fn((_req, res) => res.json([{ id: 1, title: "Hello" }])),
+    getSingleBlogById: vi.fn((req, res) =>
+        res.json({ id: Number(req.params.id) })
+    ),
+    createNewBlog: vi.fn((_req, res) => res.status(201).json({ ok: true })),
+    getArticles: vi.fn((_req, res) => res.json([{ id: 1, title: "A1" }])),
+    getSingleArticleById: vi.fn((req, res) =>
+        res.json({ id: Number(req.params.id) })
+    ),
+    createNewArticle: vi.fn((_req, res) => res.status(201).json({ ok: true })),
+    addDailyMetrics: vi.fn((_req, res) => res.status(200).json({ ok: true })),
+    getDailyMetrics: vi.fn((_req, res) => res.json([{ date: "2025-09-01" }])),
+};
+const verifyToken = vi.fn((_req, _res, next) => next());
 
 function makeApp() {
     const app = express();
     app.use(express.json());
+    const router = createRouter(Controller, { verifyToken });
     app.use("/zachtothegym", router);
     return app;
 }

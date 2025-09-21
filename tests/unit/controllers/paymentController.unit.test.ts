@@ -1,7 +1,6 @@
 // tests/unit/controllers/paymentController.unit.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import * as stripeService from "../../../src/services/stripeService";
-import { handleCreatePaymentIntent } from "../../../src/controllers/paymentController";
+import { createPaymentController } from "../../../src/controllers/paymentController";
 import { validationResult } from "express-validator";
 import { PAYMENT_ERRORS } from "../../../src/config/paymentErrors";
 
@@ -22,16 +21,17 @@ vi.mock("express-validator", () => ({
     validationResult: vi.fn(),
 }));
 
-vi.mock("../../../src/services/stripeService", () => ({
-    createPaymentIntent: vi.fn(),
-}));
+// Local mock for Stripe createPaymentIntent
+const mockedCreatePaymentIntent = vi.fn(
+    (storeId: string, amount: number, currency: string) =>
+        Promise.resolve(`mock_${storeId}_${amount}_${currency}`)
+);
 
 const mockedValidationResult = vi.mocked(
     validationResult as unknown as ReturnType<typeof vi.fn>
 );
-const mockedCreatePaymentIntent = vi.mocked(
-    stripeService.createPaymentIntent as unknown as ReturnType<typeof vi.fn>
-);
+// already typed above
+const mockedCreatePaymentIntentTyped = mockedCreatePaymentIntent;
 
 // simple res factory
 function makeRes() {
@@ -45,6 +45,9 @@ describe("paymentController (unit)", () => {
     describe("handleCreatePaymentIntent", () => {
         let req: any;
         let res: any;
+        let handleCreatePaymentIntent: ReturnType<
+            typeof createPaymentController
+        >["handleCreatePaymentIntent"];
 
         beforeEach(() => {
             vi.clearAllMocks();
@@ -52,6 +55,12 @@ describe("paymentController (unit)", () => {
                 body: { storeId: "store-1", amount: 1000, currency: "usd" },
             };
             res = makeRes();
+            handleCreatePaymentIntent = createPaymentController({
+                // not used in this controller path
+                getStripeClient: (() => undefined) as any,
+                createPaymentIntent:
+                    mockedCreatePaymentIntent as unknown as any,
+            }).handleCreatePaymentIntent;
         });
 
         it("returns 400 with validation errors (no service call)", async () => {
@@ -72,7 +81,7 @@ describe("paymentController (unit)", () => {
                     PAYMENT_ERRORS.INVALID_AMOUNT,
                 ],
             });
-            expect(mockedCreatePaymentIntent).not.toHaveBeenCalled();
+            expect(mockedCreatePaymentIntentTyped).not.toHaveBeenCalled();
         });
 
         it("returns 200 and clientSecret on success", async () => {
@@ -80,12 +89,12 @@ describe("paymentController (unit)", () => {
                 isEmpty: () => true,
                 array: () => [],
             } as any);
-            mockedCreatePaymentIntent.mockResolvedValue("secret_abc");
+            mockedCreatePaymentIntentTyped.mockResolvedValue("secret_abc");
 
             await handleCreatePaymentIntent(req, res);
 
-            expect(mockedCreatePaymentIntent).toHaveBeenCalledTimes(1);
-            expect(mockedCreatePaymentIntent).toHaveBeenCalledWith(
+            expect(mockedCreatePaymentIntentTyped).toHaveBeenCalledTimes(1);
+            expect(mockedCreatePaymentIntentTyped).toHaveBeenCalledWith(
                 "store-1",
                 1000,
                 "usd"
@@ -101,7 +110,7 @@ describe("paymentController (unit)", () => {
                 isEmpty: () => true,
                 array: () => [],
             } as any);
-            mockedCreatePaymentIntent.mockRejectedValue(
+            mockedCreatePaymentIntentTyped.mockRejectedValue(
                 new Error("stripe down")
             );
 

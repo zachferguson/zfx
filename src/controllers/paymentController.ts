@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import type { IStripeService } from "../services/stripeService";
-import { createPaymentIntent } from "../services/stripeService";
 import type { CreatePaymentIntentRequest } from "../types/createPaymentIntentRequest";
 import { PAYMENT_ERRORS } from "../config/paymentErrors";
 import { validationResult, type ValidationError } from "express-validator";
@@ -56,13 +55,3 @@ export function createPaymentController(
         },
     };
 }
-
-// Default-wired handler using function export (mock-friendly in tests)
-const defaultService: IStripeService = {
-    getStripeClient: () => {
-        throw new Error("not used here");
-    },
-    createPaymentIntent,
-};
-export const { handleCreatePaymentIntent } =
-    createPaymentController(defaultService);

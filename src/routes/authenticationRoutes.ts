@@ -1,17 +1,13 @@
-import { Router } from "express";
-import {
-    login,
-    register,
-    type AuthenticationControllerHandlers,
-} from "../controllers/authenticationController";
+import { Router, type Response, type NextFunction } from "express";
+import type { AuthenticationControllerHandlers } from "../controllers/authenticationController";
 import {
     validateLogin,
     validateRegister,
 } from "../validators/authenticationValidators";
-import { verifyToken } from "../middleware/authenticationMiddleware";
+import type { AuthRequest } from "../middleware/authenticationMiddleware";
 
 export type AuthMiddlewareHandlers = {
-    verifyToken: typeof verifyToken;
+    verifyToken: (req: AuthRequest, res: Response, next: NextFunction) => void;
 };
 
 export function createAuthenticationRouter(
@@ -37,10 +33,4 @@ export function createAuthenticationRouter(
  *
  * @module routes/authenticationRoutes
  */
-// Default wired router (existing behavior). Tests can mock controller/middleware modules.
-// Use the default-wired verifyToken so mocking the module still works.
-const defaultRouter = createAuthenticationRouter(
-    { login, register },
-    { verifyToken }
-);
-export default defaultRouter;
+export default createAuthenticationRouter;

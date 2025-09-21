@@ -63,9 +63,16 @@ vi.mock("../../../src/controllers/printifyController", () => {
     return { createPrintifyController, __getHandlers };
 });
 
-// Auth middleware: always allows the request through
+// Hoisted spy so we can assert calls without importing the symbol
+const { authMw } = vi.hoisted(() => ({
+    authMw: {
+        verifyToken: vi.fn((_req: any, _res: any, next: any) => next()),
+    },
+}));
+
+// Auth middleware: always allows the request through, exposing our hoisted spy
 vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
-    verifyToken: vi.fn((_req: any, _res: any, next: any) => next()),
+    verifyToken: authMw.verifyToken,
 }));
 
 /**
@@ -106,7 +113,7 @@ vi.mock("../../../src/utils/requireEnv", () => ({
 // Import the fully-wired router AFTER all module mocks
 import router from "../../../src/routes/printifyRoutes.wired";
 import * as ControllerModule from "../../../src/controllers/printifyController";
-import { verifyToken } from "../../../src/middleware/authenticationMiddleware";
+// Note: verifyToken export removed; middleware is mocked above via hoisted spy.
 
 // Stable access to the mocked controller handlers
 function handlers() {
@@ -137,7 +144,7 @@ describe("printifyRoutes (integration)", () => {
         h.getShippingOptions.mockClear();
         h.submitOrder.mockClear();
         h.getOrderStatus.mockClear();
-        (verifyToken as unknown as Mock).mockClear();
+        authMw.verifyToken.mockClear();
 
         app = makeApp();
     });
@@ -151,9 +158,10 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(200);
             expect(res.body).toEqual([{ id: "p1" }]);
             expect(h.getProducts).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
 
-            const [reqArg] = h.getProducts.mock.calls[0];
+            const call = h.getProducts.mock.calls[0] as any[];
+            const reqArg = call[0];
             expect(reqArg.params.id).toBe("store-123");
         });
     });
@@ -169,10 +177,11 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(400);
             expect(res.body.errors).toBeDefined();
             expect(h.getShippingOptions).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
 
-            const [reqArg] = h.getShippingOptions.mock.calls[0];
-            expect(reqArg.params.id).toBe("store-1");
+            const call1 = h.getShippingOptions.mock.calls[0] as any[];
+            const reqArg1 = call1 && call1[0];
+            expect(reqArg1.params.id).toBe("store-1");
         });
 
         it("returns 400 when line_items is empty", async () => {
@@ -188,7 +197,7 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(400);
             expect(res.body.errors).toBeDefined();
             expect(h.getShippingOptions).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
         });
 
         it("returns 200 and calls the controller on a minimally valid payload", async () => {
@@ -204,10 +213,11 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(200);
             expect(res.body).toEqual([{ id: "s1" }]);
             expect(h.getShippingOptions).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
 
-            const [reqArg] = h.getShippingOptions.mock.calls[0];
-            expect(reqArg.params.id).toBe("store-3");
+            const call2 = h.getShippingOptions.mock.calls[0] as any[];
+            const reqArg2 = call2 && call2[0];
+            expect(reqArg2.params.id).toBe("store-3");
         });
     });
 
@@ -242,11 +252,12 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(201);
             expect(res.body).toEqual({ ok: true });
             expect(h.submitOrder).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
 
-            const [reqArg] = h.submitOrder.mock.calls[0];
-            expect(reqArg.body.storeId).toBe("store-1");
-            expect(reqArg.body.stripe_payment_id).toBe("stripe-1");
+            const subCall = h.submitOrder.mock.calls[0] as any[];
+            const reqArg3 = subCall && subCall[0];
+            expect(reqArg3.body.storeId).toBe("store-1");
+            expect(reqArg3.body.stripe_payment_id).toBe("stripe-1");
         });
 
         it("returns 400 when payload is invalid (validator enforces requirements)", async () => {
@@ -259,7 +270,7 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(400);
             expect(res.body.errors).toBeDefined();
             expect(h.submitOrder).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
         });
     });
 
@@ -275,11 +286,12 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ status: "in_production" });
             expect(h.getOrderStatus).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
 
-            const [reqArg] = h.getOrderStatus.mock.calls[0];
-            expect(reqArg.body.orderId).toBe("o1");
-            expect(reqArg.body.email).toBe("a@b.com");
+            const stCall = h.getOrderStatus.mock.calls[0] as any[];
+            const reqArg4 = stCall && stCall[0];
+            expect(reqArg4.body.orderId).toBe("o1");
+            expect(reqArg4.body.email).toBe("a@b.com");
         });
 
         it("returns 400 when required fields are missing (validator enforces requirements)", async () => {
@@ -292,7 +304,7 @@ describe("printifyRoutes (integration)", () => {
             expect(res.status).toBe(400);
             expect(res.body.errors).toBeDefined();
             expect(h.getOrderStatus).toHaveBeenCalledTimes(1);
-            expect(verifyToken).not.toHaveBeenCalled();
+            expect(authMw.verifyToken).not.toHaveBeenCalled();
         });
     });
 });

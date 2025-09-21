@@ -28,26 +28,12 @@ const h = vi.hoisted(() => ({
     },
 }));
 
-vi.mock("../../../src/controllers/zachtothegymController", () => ({
-    getBlogs: h.ctrl.getBlogs,
-    getSingleBlogById: h.ctrl.getSingleBlogById,
-    createNewBlog: h.ctrl.createNewBlog,
-    getArticles: h.ctrl.getArticles,
-    getSingleArticleById: h.ctrl.getSingleArticleById,
-    createNewArticle: h.ctrl.createNewArticle,
-    addDailyMetrics: h.ctrl.addDailyMetrics,
-    getDailyMetrics: h.ctrl.getDailyMetrics,
-}));
-
-vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
-    verifyToken: h.mw.verifyToken,
-}));
-
-import router from "../../../src/routes/zachtothegymRoutes";
+import createRouter from "../../../src/routes/zachtothegymRoutes";
 
 function makeApp() {
     const app = express();
     app.use(express.json());
+    const router = createRouter(h.ctrl, h.mw);
     app.use("/zachtothegym", router);
     return app;
 }

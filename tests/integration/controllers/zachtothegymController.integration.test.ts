@@ -19,16 +19,7 @@ import * as MetricsSvc from "../../../src/services/metricsService";
  *   2. Use clear, descriptive test names and assertions.
  */
 
-import {
-    getBlogs,
-    getSingleBlogById,
-    createNewBlog,
-    getArticles,
-    getSingleArticleById,
-    createNewArticle,
-    addDailyMetrics,
-    getDailyMetrics,
-} from "../../../src/controllers/zachtothegymController";
+import { createZachtothegymController } from "../../../src/controllers/zachtothegymController";
 import {
     validateGetSingleBlogById,
     validateCreateNewBlog,
@@ -42,20 +33,47 @@ function makeApp() {
     const app = express();
     app.use(express.json());
 
-    app.get("/blogs", getBlogs);
-    app.get("/blogs/:id", validateGetSingleBlogById, getSingleBlogById);
-    app.post("/blogs", validateCreateNewBlog, createNewBlog);
+    const controller = createZachtothegymController({
+        getAllBlogs: BlogsSvc.getAllBlogs,
+        getBlogById: BlogsSvc.getBlogById,
+        createBlog: BlogsSvc.createBlog,
+        getAllArticles: ArticlesSvc.getAllArticles,
+        getArticleById: ArticlesSvc.getArticleById,
+        createArticle: ArticlesSvc.createArticle,
+        saveDailyMetrics: MetricsSvc.saveDailyMetrics,
+        getMetricsInRange: MetricsSvc.getMetricsInRange,
+    });
 
-    app.get("/articles", getArticles);
+    app.get("/blogs", controller.getBlogs);
+    app.get(
+        "/blogs/:id",
+        validateGetSingleBlogById,
+        controller.getSingleBlogById
+    );
+    app.post("/blogs", validateCreateNewBlog, controller.createNewBlog);
+
+    app.get("/articles", controller.getArticles);
     app.get(
         "/articles/:id",
         validateGetSingleArticleById,
-        getSingleArticleById
+        controller.getSingleArticleById
     );
-    app.post("/articles", validateCreateNewArticle, createNewArticle);
+    app.post(
+        "/articles",
+        validateCreateNewArticle,
+        controller.createNewArticle
+    );
 
-    app.post("/metrics/daily", validateAddDailyMetrics, addDailyMetrics);
-    app.get("/metrics/daily", validateGetDailyMetrics, getDailyMetrics);
+    app.post(
+        "/metrics/daily",
+        validateAddDailyMetrics,
+        controller.addDailyMetrics
+    );
+    app.get(
+        "/metrics/daily",
+        validateGetDailyMetrics,
+        controller.getDailyMetrics
+    );
 
     return app;
 }
@@ -64,8 +82,8 @@ describe("zachtothegym controller integration", () => {
     let app: express.Express;
 
     beforeEach(() => {
-        app = makeApp();
         vi.restoreAllMocks();
+        // Recreate app after spies are applied in each test if needed
     });
 
     // ----------------- BLOGS -----------------
@@ -82,6 +100,7 @@ describe("zachtothegym controller integration", () => {
                     updated_at: new Date(),
                 },
             ]);
+            app = makeApp();
             const res = await request(app).get("/blogs");
             expect(res.status).toBe(200);
             expect(res.body).toEqual([
@@ -95,6 +114,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(BlogsSvc, "getAllBlogs").mockRejectedValue(
                 new Error("boom")
             );
+            app = makeApp();
             const res = await request(app).get("/blogs");
             expect(res.status).toBe(500);
             expect(res.body.error).toBeDefined();
@@ -105,6 +125,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 for invalid blog id
         it("GET /blogs/:id -> 400 invalid id", async () => {
             const spy = vi.spyOn(BlogsSvc, "getBlogById");
+            app = makeApp();
             const res = await request(app).get("/blogs/not-a-number");
             expect(res.status).toBe(400);
             expect(res.body.errors).toContain("Invalid blog ID.");
@@ -116,6 +137,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(BlogsSvc, "getBlogById").mockResolvedValue(
                 undefined as any
             );
+            app = makeApp();
             const res = await request(app).get("/blogs/123");
             expect(res.status).toBe(404);
             expect(res.body.error).toBe("Blog not found.");
@@ -127,6 +149,7 @@ describe("zachtothegym controller integration", () => {
                 id: 2,
                 title: "Found",
             } as any);
+            app = makeApp();
             const res = await request(app).get("/blogs/2");
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ id: 2, title: "Found" });
@@ -137,6 +160,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(BlogsSvc, "getBlogById").mockRejectedValue(
                 new Error("kaboom")
             );
+            app = makeApp();
             const res = await request(app).get("/blogs/1");
             expect(res.status).toBe(500);
             expect(res.body.error).toBe("Failed to fetch blog.");
@@ -147,6 +171,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 when title or content is missing
         it("POST /blogs -> 400 missing title/content", async () => {
             const spy = vi.spyOn(BlogsSvc, "createBlog");
+            app = makeApp();
             const res = await request(app).post("/blogs").send({ title: "" });
             expect(res.status).toBe(400);
             expect(res.body.errors).toContain(
@@ -161,6 +186,7 @@ describe("zachtothegym controller integration", () => {
                 id: 10,
                 title: "New",
             } as any);
+            app = makeApp();
             const res = await request(app)
                 .post("/blogs")
                 .send({ title: "New", content: "Body", categories: ["x"] });
@@ -176,6 +202,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(BlogsSvc, "createBlog").mockRejectedValue(
                 new Error("insert-fail")
             );
+            app = makeApp();
             const res = await request(app)
                 .post("/blogs")
                 .send({ title: "T", content: "C", categories: [] });
@@ -191,6 +218,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(ArticlesSvc, "getAllArticles").mockResolvedValue([
                 { id: 1, title: "A1" },
             ] as any);
+            app = makeApp();
             const res = await request(app).get("/articles");
             expect(res.status).toBe(200);
             expect(res.body).toEqual([{ id: 1, title: "A1" }]);
@@ -201,6 +229,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(ArticlesSvc, "getAllArticles").mockRejectedValue(
                 new Error("db-blip")
             );
+            app = makeApp();
             const res = await request(app).get("/articles");
             expect(res.status).toBe(500);
             expect(res.body.error).toBe("Failed to fetch articles.");
@@ -211,6 +240,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 invalid id
         it("GET /articles/:id -> 400 invalid id", async () => {
             const spy = vi.spyOn(ArticlesSvc, "getArticleById");
+            app = makeApp();
             const res = await request(app).get("/articles/banana");
             expect(res.status).toBe(400);
             expect(res.body.errors).toContain("Invalid article ID.");
@@ -222,6 +252,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(ArticlesSvc, "getArticleById").mockResolvedValue(
                 null as any
             );
+            app = makeApp();
             const res = await request(app).get("/articles/99");
             expect(res.status).toBe(404);
             expect(res.body.error).toBe("Article not found.");
@@ -233,6 +264,7 @@ describe("zachtothegym controller integration", () => {
                 id: 7,
                 title: "Found",
             } as any);
+            app = makeApp();
             const res = await request(app).get("/articles/7");
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ id: 7, title: "Found" });
@@ -243,6 +275,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(ArticlesSvc, "getArticleById").mockRejectedValue(
                 new Error("boom")
             );
+            app = makeApp();
             const res = await request(app).get("/articles/1");
             expect(res.status).toBe(500);
             expect(res.body.error).toBe("Failed to fetch article.");
@@ -253,6 +286,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 missing fields
         it("POST /articles -> 400 missing fields", async () => {
             const spy = vi.spyOn(ArticlesSvc, "createArticle");
+            app = makeApp();
             const res = await request(app)
                 .post("/articles")
                 .send({ title: "T" });
@@ -267,6 +301,7 @@ describe("zachtothegym controller integration", () => {
                 id: 5,
                 title: "T",
             } as any);
+            app = makeApp();
             const res = await request(app)
                 .post("/articles")
                 .send({
@@ -290,6 +325,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(ArticlesSvc, "createArticle").mockRejectedValue(
                 new Error("insert-fail")
             );
+            app = makeApp();
             const res = await request(app).post("/articles").send({
                 title: "T",
                 summary: "S",
@@ -306,6 +342,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 when date missing
         it("POST /metrics/daily -> 400 when date missing", async () => {
             const spy = vi.spyOn(MetricsSvc, "saveDailyMetrics");
+            app = makeApp();
             const res = await request(app)
                 .post("/metrics/daily")
                 .send({ steps: 1000 });
@@ -319,6 +356,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(MetricsSvc, "saveDailyMetrics").mockResolvedValue(
                 undefined as any
             );
+            app = makeApp();
             const res = await request(app)
                 .post("/metrics/daily")
                 .send({ date: "2025-09-01", steps: 1000 });
@@ -339,6 +377,7 @@ describe("zachtothegym controller integration", () => {
                 new Error("upsert-fail")
             );
 
+            app = makeApp();
             const res = await request(app)
                 .post("/metrics/daily")
                 .send({ date: "2025-09-01", steps: 1000 });
@@ -354,6 +393,7 @@ describe("zachtothegym controller integration", () => {
         // Should return 400 when start/end missing
         it("GET /metrics/daily -> 400 when start/end missing", async () => {
             const spy = vi.spyOn(MetricsSvc, "getMetricsInRange");
+            app = makeApp();
             const res = await request(app).get("/metrics/daily");
             expect(res.status).toBe(400);
             expect(res.body.errors).toContain(
@@ -367,6 +407,7 @@ describe("zachtothegym controller integration", () => {
             vi.spyOn(MetricsSvc, "getMetricsInRange").mockResolvedValue([
                 { date: "2025-09-01" },
             ] as any);
+            app = makeApp();
             const res = await request(app).get(
                 "/metrics/daily?start=2025-08-01&end=2025-09-01"
             );
@@ -387,6 +428,7 @@ describe("zachtothegym controller integration", () => {
                 new Error("range-fail")
             );
 
+            app = makeApp();
             const res = await request(app).get(
                 "/metrics/daily?start=2025-08-01&end=2025-09-01"
             );

@@ -3,11 +3,8 @@ import * as expressValidator from "express-validator";
 import * as AuthSvc from "../../../src/services/authenticationService";
 import { AUTHENTICATION_ERRORS } from "../../../src/config/authenticationErrors";
 import * as jwt from "jsonwebtoken";
-import {
-    register,
-    login,
-    verifyToken,
-} from "../../../src/controllers/authenticationController";
+import { createAuthenticationController } from "../../../src/controllers/authenticationController";
+import { createAuthMiddleware } from "../../../src/middleware/authenticationMiddleware";
 
 /**
  * @file Unit tests for authenticationController (register, login, verifyToken).
@@ -55,10 +52,19 @@ function makeRes() {
 
 describe("authenticationController (unit)", () => {
     const OLD_SECRET = process.env.JWT_SECRET;
+    let register: ReturnType<typeof createAuthenticationController>["register"];
+    let login: ReturnType<typeof createAuthenticationController>["login"];
 
     beforeEach(() => {
         vi.clearAllMocks();
         process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+        // Build controller with mocked service functions
+        const controller = createAuthenticationController({
+            registerUser: AuthSvc.registerUser as unknown as any,
+            authenticateUser: AuthSvc.authenticateUser as unknown as any,
+        });
+        register = controller.register;
+        login = controller.login;
     });
 
     // --------------------------- register -------------------------------------
@@ -276,18 +282,19 @@ describe("authenticationController (unit)", () => {
         });
     });
 
-    // -------------------------- verifyToken -----------------------------------
-    describe("verifyToken", () => {
+    // -------------------------- verifyToken (middleware) ----------------------
+    describe("verifyToken (middleware)", () => {
         it("returns 401 when no Authorization header", () => {
             const req: any = { headers: {} };
             const res = makeRes();
             const next = vi.fn();
 
+            const { verifyToken } = createAuthMiddleware("test-secret");
             verifyToken(req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(401);
             expect(res.json).toHaveBeenCalledWith({
-                error: AUTHENTICATION_ERRORS.MISSING_TOKEN,
+                message: "Access token is missing.",
             });
             expect(next).not.toHaveBeenCalled();
         });
@@ -303,11 +310,12 @@ describe("authenticationController (unit)", () => {
                 throw new Error("bad token");
             });
 
+            const { verifyToken } = createAuthMiddleware("test-secret");
             verifyToken(req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(403);
             expect(res.json).toHaveBeenCalledWith({
-                error: AUTHENTICATION_ERRORS.INVALID_TOKEN,
+                message: "Invalid or expired token.",
             });
             expect(next).not.toHaveBeenCalled();
         });
@@ -322,13 +330,14 @@ describe("authenticationController (unit)", () => {
 
             (jwt as any).default.verify.mockReturnValue(decoded);
 
+            const { verifyToken } = createAuthMiddleware("test-secret");
             verifyToken(req, res, next);
 
             expect(next).toHaveBeenCalledTimes(1);
             expect(req.user).toEqual(decoded);
             expect((jwt as any).default.verify).toHaveBeenCalledWith(
                 "real.jwt.here",
-                process.env.JWT_SECRET!
+                expect.any(String)
             );
             expect(res.status).not.toHaveBeenCalled();
         });
