@@ -30,7 +30,7 @@ vi.mock("../../../src/db/connection", () => {
     };
 });
 
-const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
+const asMock = <T extends Function>(fn: unknown) => fn as Mock;
 // Helper to normalize whitespace in SQL for easier assertions
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 

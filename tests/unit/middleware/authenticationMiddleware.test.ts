@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "./authenticationMiddleware";
+import { verifyToken } from "../../../src/middleware/authenticationMiddleware";
 
 vi.mock("jsonwebtoken");
 

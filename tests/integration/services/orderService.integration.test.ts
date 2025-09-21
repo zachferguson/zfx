@@ -7,15 +7,15 @@ import {
     afterAll,
     vi,
 } from "vitest";
-import path from "node:path";
 
-import type { OrderService as OrderServiceType } from "../../../src/services/orderService";
+import type { IOrderService } from "../../../src/services/orderService";
+import { PgOrderService } from "../../../src/services/orderService";
 
 /**
  * @file Integration tests for orderService.
  *
  * Two suites:
- * 1) pg-mem (always runs): service wired to an in-memory pg instance via a mocked db module.
+ * 1) pg-mem (always runs): service wired to an in-memory pg instance.
  * 2) real DB (conditional on DATABASE_URL): each test runs in a transaction and is rolled back.
  *
  * Scenarios covered:
@@ -32,7 +32,7 @@ const REAL_DB = !!(
 // --- PG-MEM SUITE (always) -----------------------------------------------------
 describe("orderService (integration, pg-mem / no real DB)", () => {
     let handles: any;
-    let svc: OrderServiceType;
+    let svc: IOrderService;
 
     beforeAll(async () => {
         vi.resetModules();
@@ -41,17 +41,8 @@ describe("orderService (integration, pg-mem / no real DB)", () => {
         const pgmem = await import("../../utils/pgmem");
         handles = await pgmem.setupPgMemAll({ seed: false });
 
-        // Mock the *resolved absolute id* of src/db/connection
-        const connAbsPath = path.resolve(
-            __dirname,
-            "../../../src/db/connection"
-        );
-        vi.doMock(connAbsPath, () => ({ default: handles.db }));
-
-        // Import SUT after mocking so it uses pg-mem
-        const mod = await import("../../../src/services/orderService");
-        const OrderService = mod.OrderService;
-        svc = new OrderService();
+        // Instantiate the concrete service with the in-memory db
+        svc = new PgOrderService(handles.db);
 
         // Ensure expected columns exist on pg-mem table (if pgmem.ts wasn't updated yet)
         const alters = [
@@ -64,7 +55,7 @@ describe("orderService (integration, pg-mem / no real DB)", () => {
         for (const sql of alters) {
             try {
                 // Some pg-mem versions may not support IF NOT EXISTS perfectly; ignore errors.
-                // eslint-disable-next-line no-await-in-loop
+                 
                 await handles.db.none(sql);
             } catch {
                 /* no-op */
@@ -147,7 +138,7 @@ describe("orderService (integration, pg-mem / no real DB)", () => {
 describe.runIf(REAL_DB)(
     "orderService (integration, real DB with rollback)",
     () => {
-        let svc: OrderServiceType;
+        let svc: IOrderService;
         let realDb: any;
 
         const ROLLBACK = new Error("__ROLLBACK__");
@@ -157,9 +148,7 @@ describe.runIf(REAL_DB)(
             vi.resetModules(); // ensure no pg-mem mocks leak
             realDb = (await import("../../../src/db/connection")).default;
 
-            const mod = await import("../../../src/services/orderService");
-            const OrderService = mod.OrderService;
-            svc = new OrderService();
+            svc = new PgOrderService(realDb);
 
             // Detect if the real table has all columns the service writes
             const rows: Array<{ column_name: string }> = await realDb.any(

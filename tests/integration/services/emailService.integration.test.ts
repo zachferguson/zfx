@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
+import { NodeMailerEmailService } from "../../../src/services/emailService";
+import type { StoreEmailConfigMap } from "../../../src/types/email";
 
 /**
  * @file Integration tests for emailService.
@@ -19,11 +21,9 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 
 const LIVE_ENABLED = process.env.EMAIL_LIVE === "1";
 
-type ModuleUnderTest = typeof import("../../../src/services/emailService");
-
 describe("emailService (integration, mock SMTP transport)", () => {
-    // We'll swap STORE_EMAILS before importing the SUT each time
-    let sendOrderConfirmation: ModuleUnderTest["sendOrderConfirmation"];
+    // We'll instantiate the service per test with a stores map + injected transport factory
+    let emailService: NodeMailerEmailService;
 
     const STORE_ID = "store-1";
     const FRONTEND_URL = "https://shop.example.com";
@@ -55,55 +55,47 @@ describe("emailService (integration, mock SMTP transport)", () => {
     };
 
     // our fake transport + capture of the createTransport options
-    const fakeTransport = {
-        sendMail: vi.fn().mockResolvedValue({ messageId: "m-123" }),
-    };
-    const createTransportCalls: any[] = [];
+    let fakeTransport: { sendMail: ReturnType<typeof vi.fn> };
+    let createTransportCalls: any[];
 
-    async function importWithStoreConfig(storeConfig: any) {
-        vi.resetModules();
-        createTransportCalls.length = 0;
-
-        // Mock STORE_EMAILS to provide or withhold config
-        vi.doMock("../../../src/config/storeEmails", () => ({
-            STORE_EMAILS: storeConfig,
-        }));
-
-        const mod = await import("../../../src/services/emailService");
-        return mod;
+    // Helper: build a service with provided stores and an injected transport factory
+    function makeService(stores: StoreEmailConfigMap) {
+        return new NodeMailerEmailService(stores, {
+            createTransport: (opts: any) => {
+                createTransportCalls.push(opts);
+                return fakeTransport as any;
+            },
+            logger: console,
+        });
     }
 
     beforeEach(() => {
         // Keep mock implementations; clear call history.
         vi.clearAllMocks();
-        fakeTransport.sendMail.mockClear();
-        // Do not rely on a previous mockResolvedValue — set it explicitly when needed.
+        fakeTransport = {
+            sendMail: vi.fn().mockResolvedValue({ messageId: "m-123" }),
+        };
+        createTransportCalls = [];
     });
 
     describe("when store email configuration is missing", () => {
-        // Should return {success:false, error} if STORE_EMAILS lacks credentials for the store
+        // Should return {success:false, error} if store credentials/config are missing
         it("returns an error without sending", async () => {
-            const mod = await importWithStoreConfig({});
-            sendOrderConfirmation = mod.sendOrderConfirmation;
+            emailService = makeService({}); // no config for STORE_ID
 
-            const res = await sendOrderConfirmation(
-                STORE_ID,
-                "buyer@example.com",
-                "ORD-1",
-                baseSummary,
-                {
-                    // inject a fake createTransport (should never be called)
-                    createTransport: (opts: any) => {
-                        createTransportCalls.push(opts);
-                        return fakeTransport as any;
-                    },
-                }
-            );
+            const res = await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: "buyer@example.com",
+                orderNumber: "ORD-1",
+                payload: baseSummary as any,
+            });
 
             expect(res.success).toBe(false);
-            expect(typeof res.error).toBe("string");
+            if (!res.success) {
+                expect(typeof res.error).toBe("string");
+            }
             expect(fakeTransport.sendMail).not.toHaveBeenCalled();
-            expect(createTransportCalls.length).toBe(0);
+            expect(createTransportCalls).toHaveLength(0);
         });
     });
 
@@ -111,8 +103,9 @@ describe("emailService (integration, mock SMTP transport)", () => {
         const USER = "orders@example.com";
         const PASS = "super-secret";
 
-        beforeAll(async () => {
-            const mod = await importWithStoreConfig({
+        beforeAll(() => {
+            // Build a service instance that uses a real stores map + injected transport factory
+            emailService = makeService({
                 [STORE_ID]: {
                     user: USER,
                     pass: PASS,
@@ -120,7 +113,6 @@ describe("emailService (integration, mock SMTP transport)", () => {
                     storeName: STORE_NAME,
                 },
             });
-            sendOrderConfirmation = mod.sendOrderConfirmation;
         });
 
         beforeEach(() => {
@@ -131,18 +123,12 @@ describe("emailService (integration, mock SMTP transport)", () => {
 
         // Should call transport with correct envelope and return success
         it("sends via transporter with correct envelope", async () => {
-            const res = await sendOrderConfirmation(
-                STORE_ID,
-                "buyer@example.com",
-                "ORD-2",
-                baseSummary,
-                {
-                    createTransport: (opts: any) => {
-                        createTransportCalls.push(opts);
-                        return fakeTransport as any;
-                    },
-                }
-            );
+            const res = await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: "buyer@example.com",
+                orderNumber: "ORD-2",
+                payload: baseSummary as any,
+            });
 
             expect(res).toEqual(
                 expect.objectContaining({ success: true, messageId: "m-123" })
@@ -160,18 +146,12 @@ describe("emailService (integration, mock SMTP transport)", () => {
 
         // Should embed a tracking URL with orderId and email in both text and html bodies
         it("includes tracking URL with orderId & email", async () => {
-            await sendOrderConfirmation(
-                STORE_ID,
-                "buyer@example.com",
-                "ORD-3",
-                baseSummary,
-                {
-                    createTransport: (opts: any) => {
-                        createTransportCalls.push(opts);
-                        return fakeTransport as any;
-                    },
-                }
-            );
+            await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: "buyer@example.com",
+                orderNumber: "ORD-3",
+                payload: baseSummary as any,
+            });
             const mail = fakeTransport.sendMail.mock.calls[0][0];
 
             const expectedQuery = `orderId=ORD-3&email=buyer%40example.com`;
@@ -183,18 +163,12 @@ describe("emailService (integration, mock SMTP transport)", () => {
 
         // Should escape HTML-sensitive characters in address and items and render totals
         it("escapes HTML and renders items & totals correctly", async () => {
-            await sendOrderConfirmation(
-                STORE_ID,
-                "buyer@example.com",
-                "ORD-4",
-                baseSummary,
-                {
-                    createTransport: (opts: any) => {
-                        createTransportCalls.push(opts);
-                        return fakeTransport as any;
-                    },
-                }
-            );
+            await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: "buyer@example.com",
+                orderNumber: "ORD-4",
+                payload: baseSummary as any,
+            });
             const mail = fakeTransport.sendMail.mock.calls[0][0];
 
             // HTML should contain escaped address and item title
@@ -219,18 +193,12 @@ describe("emailService (integration, mock SMTP transport)", () => {
 
         // Should construct the SMTP transport using domain-derived host and secure port
         it("constructs transport with domain-derived host & auth", async () => {
-            await sendOrderConfirmation(
-                STORE_ID,
-                "buyer@example.com",
-                "ORD-5",
-                baseSummary,
-                {
-                    createTransport: (opts: any) => {
-                        createTransportCalls.push(opts);
-                        return fakeTransport as any;
-                    },
-                }
-            );
+            await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: "buyer@example.com",
+                orderNumber: "ORD-5",
+                payload: baseSummary as any,
+            });
 
             expect(createTransportCalls.length).toBeGreaterThanOrEqual(1);
             const transportOpts = createTransportCalls.at(-1);
@@ -252,7 +220,9 @@ describe("emailService (integration, mock SMTP transport)", () => {
 
 */
 describe.runIf(LIVE_ENABLED)("emailService (integration, live SMTP)", () => {
-    let sendOrderConfirmation: ModuleUnderTest["sendOrderConfirmation"];
+    // Use the *real* storeEmails config and class; ensure STORE_EMAILS contains credentials for STORE_ID.
+    // No mocks here — we construct the real service and attempt a real send.
+    let emailService: NodeMailerEmailService;
 
     const STORE_ID = process.env.EMAIL_LIVE_STORE_ID || "store-live";
     const TO = process.env.EMAIL_LIVE_TO || "you@example.com";
@@ -281,22 +251,19 @@ describe.runIf(LIVE_ENABLED)("emailService (integration, live SMTP)", () => {
         currency: "USD",
     };
 
-    beforeAll(async () => {
-        vi.resetModules();
-        // Use the *real* storeEmails config module; ensure it contains credentials for STORE_ID.
-        const mod = await import("../../../src/services/emailService");
-        sendOrderConfirmation = mod.sendOrderConfirmation;
+    beforeAll(() => {
+        emailService = new NodeMailerEmailService(STORE_EMAILS);
     });
 
     describe("sendOrderConfirmation (live)", () => {
         // Should send a real email when EMAIL_LIVE=1 and store config is valid
         it("attempts a real send and returns success", async () => {
-            const res = await sendOrderConfirmation(
-                STORE_ID,
-                TO,
-                ORDER_ID,
-                liveSummary as any
-            );
+            const res = await emailService.sendOrderConfirmation({
+                storeId: STORE_ID,
+                to: TO,
+                orderNumber: ORDER_ID,
+                payload: liveSummary as any,
+            });
             // We can only assert shape; delivery itself is handled by SMTP
             expect(res).toEqual(
                 expect.objectContaining({

@@ -1,12 +1,26 @@
-import db from "../db/connection";
 import type { IDatabase, ITask } from "pg-promise";
-import { OrderLookup, OrderData } from "../types/order";
+import type { OrderLookup, OrderData } from "../types/order";
 
-// Any pg-promise connection-like object: the global db or a tx/task context.
-type DbOrTx = IDatabase<unknown> | ITask<unknown>;
-const useDb = (t?: DbOrTx) => t ?? db;
+// A connection can be the app-wide db or a transaction/task context
+export type DbOrTx = IDatabase<unknown> | ITask<unknown>;
 
-export class OrderService {
+export interface IOrderService {
+    saveOrder(order: OrderData, cn?: DbOrTx): Promise<{ id: string }>;
+    updatePrintifyOrderId(
+        orderNumber: string,
+        printifyOrderId: string,
+        cn?: DbOrTx
+    ): Promise<string>;
+    getOrderByCustomer(
+        orderId: string,
+        email: string,
+        cn?: DbOrTx
+    ): Promise<OrderLookup | null>;
+}
+
+export class PgOrderService implements IOrderService {
+    constructor(private readonly db: IDatabase<unknown>) {}
+
     /**
      * Saves a new order to the database.
      * Optionally runs inside a provided transaction/task context.
@@ -16,7 +30,7 @@ export class OrderService {
      * @returns The ID of the newly created order.
      */
     async saveOrder(order: OrderData, cn?: DbOrTx): Promise<{ id: string }> {
-        const query = `
+        const q = `
       INSERT INTO orders.printifyorders (
         order_number, store_id, email, total_price, currency,
         shipping_method, shipping_cost, shipping_address, items,
@@ -25,9 +39,9 @@ export class OrderService {
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
       ) RETURNING id;
     `;
-
         try {
-            return await useDb(cn).one(query, [
+            const db = cn ?? this.db;
+            return await db.one<{ id: string }>(q, [
                 order.orderNumber,
                 order.storeId,
                 order.email,
@@ -43,7 +57,7 @@ export class OrderService {
             ]);
         } catch (err) {
             // Keep logging minimal in services; tests can assert thrown errors.
-            // eslint-disable-next-line no-console
+
             console.error("Error saving order:", err);
             throw new Error("Failed to save order.");
         }
@@ -63,21 +77,20 @@ export class OrderService {
         printifyOrderId: string,
         cn?: DbOrTx
     ): Promise<string> {
-        const query = `
+        const q = `
       UPDATE orders.printifyorders
       SET printify_order_id = $1
       WHERE order_number = $2
       RETURNING id;
     `;
-
         try {
-            const { id } = await useDb(cn).one(query, [
+            const db = cn ?? this.db;
+            const rec = await db.one<{ id: string }>(q, [
                 printifyOrderId,
                 orderNumber,
             ]);
-            return id;
+            return rec.id;
         } catch (err) {
-            // eslint-disable-next-line no-console
             console.error("Error updating Printify order ID:", err);
             throw new Error("Failed to update Printify order ID.");
         }
@@ -98,12 +111,13 @@ export class OrderService {
         cn?: DbOrTx
     ): Promise<OrderLookup | null> {
         const q = `
-            SELECT store_id, printify_order_id, total_price, shipping_cost, currency
-            FROM orders.printifyorders
-            WHERE order_number = $1 AND email = $2
-        `;
+      SELECT store_id, printify_order_id, total_price, shipping_cost, currency
+      FROM orders.printifyorders
+      WHERE order_number = $1 AND email = $2
+    `;
         try {
-            return await useDb(cn).oneOrNone<OrderLookup>(q, [orderId, email]);
+            const db = cn ?? this.db;
+            return await db.oneOrNone<OrderLookup>(q, [orderId, email]);
         } catch (err) {
             console.error("Error retrieving order:", err);
             throw new Error("Failed to retrieve order.");

@@ -211,7 +211,7 @@ describe("authenticationController (integration)", () => {
 
         // Should return 403 when JWT verification fails
         it("403 when jwt.verify throws", async () => {
-            (jwt.default.verify as any).mockImplementation(() => {
+            (jwt.default.verify).mockImplementation(() => {
                 throw new Error("bad token");
             });
             const res = await request(app)
@@ -225,7 +225,7 @@ describe("authenticationController (integration)", () => {
         // Should return 200 and attach user when JWT verifies
         it("200 when jwt verifies and attaches user", async () => {
             const decoded = { sub: "u1", role: "user" };
-            (jwt.default.verify as any).mockReturnValue(decoded as any);
+            (jwt.default.verify).mockReturnValue(decoded as any);
             const res = await request(app)
                 .get("/protected")
                 .set("Authorization", "Bearer real.jwt.here");

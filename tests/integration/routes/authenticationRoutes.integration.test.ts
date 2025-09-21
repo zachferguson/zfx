@@ -48,7 +48,7 @@ vi.mock("../../../src/controllers/authenticationController", () => {
 
 vi.mock("../../../src/middleware/authenticationMiddleware", () => ({
     verifyToken: vi.fn((req, _res, next) => {
-        (req as any).user = { id: 1, username: "mockuser" };
+        (req).user = { id: 1, username: "mockuser" };
         next();
     }),
 }));

@@ -14,6 +14,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  * - Checking order status and error handling
  */
 
+vi.mock("node:crypto", () => ({
+    default: { randomUUID: vi.fn() },
+}));
+import cryptoModule from "node:crypto";
+import type { Mock } from "vitest";
+
 // Hoisted mocks and globals (from original test setup)
 const h = vi.hoisted(() => ({
     printify: {
@@ -27,29 +33,12 @@ const h = vi.hoisted(() => ({
         updatePrintifyOrderId: vi.fn(),
         getOrderByCustomer: vi.fn(),
     },
+    email: {
+        sendOrderConfirmation: vi.fn(),
+    },
 }));
 
-const g = vi.hoisted(() => ({
-    webcrypto: { randomUUID: vi.fn() },
-}));
-
-vi.mock("../../../src/services/printifyService", () => ({
-    PrintifyService: vi.fn().mockImplementation(() => h.printify),
-}));
-
-vi.mock("../../../src/services/orderService", () => ({
-    OrderService: vi.fn().mockImplementation(() => h.order),
-}));
-
-import * as EmailSvc from "../../../src/services/emailService";
-const emailSvc = vi.mocked(EmailSvc);
-
-vi.mock("../../../src/services/emailService", () => ({
-    sendOrderConfirmation: vi.fn(),
-}));
-
-vi.stubGlobal("crypto", g.webcrypto as unknown as Crypto);
-
+// Validators and constants
 import {
     validateGetProducts,
     validateGetShippingOptions,
@@ -57,38 +46,58 @@ import {
     validateGetOrderStatus,
 } from "../../../src/validators/printifyValidators";
 import { PRINTIFY_ERRORS } from "../../../src/config/printifyErrors";
-import {
-    getProducts,
-    getShippingOptions,
-    submitOrder,
-    getOrderStatus,
-} from "../../../src/controllers/printifyController";
 
+// Controller factory (DI)
+import { createPrintifyController } from "../../../src/controllers/printifyController";
+
+/**
+ * Builds a minimal Express app for integration-style tests,
+ * wiring validators and controller handlers with injected mocks.
+ */
 function makeApp() {
     const app = express();
     app.use(express.json());
-    app.get("/products/:id?", validateGetProducts, getProducts);
-    app.post("/shipping/:id?", validateGetShippingOptions, getShippingOptions);
-    app.post("/orders", validateSubmitOrder, submitOrder);
-    app.post("/order-status", validateGetOrderStatus, getOrderStatus);
+
+    // Inject mocks into the controller
+    const controller = createPrintifyController(
+        h.printify as any,
+        h.order as any,
+        h.email as any
+    );
+
+    app.get("/products/:id?", validateGetProducts, controller.getProducts);
+    app.post(
+        "/shipping/:id?",
+        validateGetShippingOptions,
+        controller.getShippingOptions
+    );
+    app.post("/orders", validateSubmitOrder, controller.submitOrder);
+    app.post(
+        "/order-status",
+        validateGetOrderStatus,
+        controller.getOrderStatus
+    );
     return app;
 }
 
 describe("printifyController (integration)", () => {
     let app: express.Express;
 
+    type UUIDStr = `${string}-${string}-${string}-${string}-${string}`;
+    let uuidMock: Mock;
+
     beforeEach(() => {
+        uuidMock = cryptoModule.randomUUID as unknown as Mock;
+        uuidMock.mockReset();
         app = makeApp();
         vi.clearAllMocks();
-        process.env.PRINTIFY_API_KEY = "test-key";
     });
 
     afterEach(() => {
-        delete process.env.PRINTIFY_API_KEY;
+        vi.restoreAllMocks();
     });
 
     describe("GET /products", () => {
-        // Returns 400 if store id is not provided in the request
         it("GET /products -> 400 when store id missing", async () => {
             const res = await request(app).get("/products");
             expect(res.status).toBe(400);
@@ -106,7 +115,6 @@ describe("printifyController (integration)", () => {
             expect(h.printify.getProducts).toHaveBeenCalledWith("123");
         });
 
-        // Returns 500 if the service throws an error when fetching products
         it("GET /products/:id -> 500 on service error", async () => {
             const errSpy = vi
                 .spyOn(console, "error")
@@ -117,16 +125,13 @@ describe("printifyController (integration)", () => {
 
             const res = await request(app).get("/products/123");
             expect(res.status).toBe(500);
-            expect(res.body.error).toBe(
-                "Failed to fetch products from Printify."
-            );
+            expect(res.body.error).toBe(PRINTIFY_ERRORS.FAILED_FETCH_PRODUCTS);
             expect(errSpy).toHaveBeenCalled();
             errSpy.mockRestore();
         });
     });
 
     describe("POST /shipping", () => {
-        // Returns 400 if required shipping fields are missing
         it("POST /shipping/:id -> 400 when required fields missing", async () => {
             const res = await request(app).post("/shipping/1").send({});
             expect(res.status).toBe(400);
@@ -138,7 +143,10 @@ describe("printifyController (integration)", () => {
 
         // Returns 200 and shipping options when input is valid
         it("POST /shipping/:id -> 200 with options", async () => {
-            h.printify.getShippingRates.mockResolvedValue([{ id: "s1" }]);
+            // ShippingRates shape: [{ code: "standard" | "priority" | "express" | "economy", price: number }]
+            h.printify.getShippingRates.mockResolvedValue([
+                { code: "standard", price: 599 },
+            ]);
 
             const body = {
                 address_to: { country: "US", zip: "10001" },
@@ -147,14 +155,13 @@ describe("printifyController (integration)", () => {
 
             const res = await request(app).post("/shipping/777").send(body);
             expect(res.status).toBe(200);
-            expect(res.body).toEqual([{ id: "s1" }]);
+            expect(res.body).toEqual([{ code: "standard", price: 599 }]);
             expect(h.printify.getShippingRates).toHaveBeenCalledWith(
                 "777",
                 body
             );
         });
 
-        // Returns 500 if the service throws an error when fetching shipping options
         it("POST /shipping/:id -> 500 on service error", async () => {
             const errSpy = vi
                 .spyOn(console, "error")
@@ -168,14 +175,15 @@ describe("printifyController (integration)", () => {
             const res = await request(app).post("/shipping/777").send(body);
 
             expect(res.status).toBe(500);
-            expect(res.body.error).toBe("Failed to retrieve shipping options.");
+            expect(res.body.error).toBe(
+                PRINTIFY_ERRORS.FAILED_SHIPPING_OPTIONS
+            );
             expect(errSpy).toHaveBeenCalled();
             errSpy.mockRestore();
         });
     });
 
     describe("POST /orders", () => {
-        // Returns 400 if required order fields are missing
         it("POST /orders -> 400 when required fields missing", async () => {
             const res = await request(app).post("/orders").send({});
             expect(res.status).toBe(400);
@@ -185,15 +193,16 @@ describe("printifyController (integration)", () => {
             expect(h.order.saveOrder).not.toHaveBeenCalled();
         });
 
-        // Returns 201 and order info when order is submitted successfully
         it("POST /orders -> 201 happy path", async () => {
-            const UUID = "123e4567-e89b-12d3-a456-426614174000";
-            g.webcrypto.randomUUID.mockReturnValue(UUID);
+            const UUID: `${string}-${string}-${string}-${string}-${string}` =
+                "123e4567-e89b-12d3-a456-426614174000";
+            uuidMock.mockReturnValue(UUID);
+            //vi.spyOn(nodeCrypto, "randomUUID").mockReturnValue(UUID);
 
             h.order.saveOrder.mockResolvedValue({ id: 42 });
             h.printify.submitOrder.mockResolvedValue({ id: "po-99" });
             h.order.updatePrintifyOrderId.mockResolvedValue(undefined);
-            emailSvc.sendOrderConfirmation.mockResolvedValue({
+            h.email.sendOrderConfirmation.mockResolvedValue({
                 success: true,
                 messageId: "m-1",
             });
@@ -204,7 +213,7 @@ describe("printifyController (integration)", () => {
                 order: {
                     total_price: 2000,
                     currency: "USD",
-                    shipping_method: 1, // <-- number, not "STANDARD"
+                    shipping_method: 1, // number per current API
                     shipping_cost: 500,
                     customer: {
                         email: "a@b.com",
@@ -224,14 +233,14 @@ describe("printifyController (integration)", () => {
                             variant_id: 22,
                             quantity: 1,
                             print_provider_id: 333,
-                            cost: 1200, // optional, but matches your interface
+                            cost: 1200,
                             metadata: {
                                 price: 2000,
                                 title: "Shirt",
                                 variant_label: "L",
                                 sku: "SKU1",
                             },
-                            status: "in_production", // optional; allowed by your interface
+                            status: "in_production",
                         },
                     ],
                 },
@@ -274,39 +283,41 @@ describe("printifyController (integration)", () => {
                 "po-99"
             );
 
-            expect(EmailSvc.sendOrderConfirmation).toHaveBeenCalledWith(
-                "store-1",
-                "a@b.com",
-                UUID,
+            // New object-argument signature for the email service
+            expect(h.email.sendOrderConfirmation).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    address: expect.objectContaining({
-                        first_name: "Ada",
-                        last_name: "Lovelace",
-                        address1: "1 Main",
-                        city: "NY",
-                        region: "NY",
-                        zip: "10001",
-                        country: "US",
-                    }),
-                    items: expect.arrayContaining([
-                        expect.objectContaining({
-                            title: "Shirt",
-                            variant_label: "L",
-                            quantity: 1,
-                            price: 2000,
+                    storeId: "store-1",
+                    to: "a@b.com",
+                    orderNumber: UUID,
+                    payload: expect.objectContaining({
+                        shippingMethod: 1,
+                        totalPrice: 2000,
+                        currency: "USD",
+                        address: expect.objectContaining({
+                            first_name: "Ada",
+                            last_name: "Lovelace",
+                            address1: "1 Main",
+                            city: "NY",
+                            region: "NY",
+                            zip: "10001",
+                            country: "US",
                         }),
-                    ]),
-                    shippingMethod: 1,
-                    totalPrice: 2000,
-                    currency: "USD",
+                        items: expect.arrayContaining([
+                            expect.objectContaining({
+                                title: "Shirt",
+                                variant_label: "L",
+                                quantity: 1,
+                                price: 2000,
+                            }),
+                        ]),
+                    }),
                 })
             );
         });
 
-        // Returns 500 if saving the order throws an error
         it("POST /orders -> 500 when saveOrder throws", async () => {
-            const UUID = "123e4567-e89b-12d3-a456-426614174000";
-            g.webcrypto.randomUUID.mockReturnValue(UUID);
+            const UUID: UUIDStr = "123e4567-e89b-12d3-a456-426614174000";
+            uuidMock.mockReturnValue(UUID);
 
             const errSpy = vi
                 .spyOn(console, "error")
@@ -318,7 +329,7 @@ describe("printifyController (integration)", () => {
                 stripe_payment_id: "pi_1",
                 order: {
                     total_price: 1000,
-                    shipping_method: "STANDARD",
+                    shipping_method: 1,
                     shipping_cost: 400,
                     customer: { email: "x@y.com", address: {} as any },
                     line_items: [],
@@ -327,14 +338,13 @@ describe("printifyController (integration)", () => {
 
             const res = await request(app).post("/orders").send(payload);
             expect(res.status).toBe(500);
-            expect(res.body.error).toBe("Failed to process order.");
+            expect(res.body.error).toBe(PRINTIFY_ERRORS.FAILED_PROCESS_ORDER);
             expect(errSpy).toHaveBeenCalled();
             errSpy.mockRestore();
         });
     });
 
     describe("POST /order-status", () => {
-        // Returns 400 if orderId or email is missing in the request
         it("POST /order-status -> 400 when missing orderId/email", async () => {
             const res = await request(app)
                 .post("/order-status")
@@ -345,7 +355,6 @@ describe("printifyController (integration)", () => {
             );
         });
 
-        // Returns 404 if the order is not found for the given customer
         it("POST /order-status -> 404 when order not found", async () => {
             h.order.getOrderByCustomer.mockResolvedValue(null);
 
@@ -354,10 +363,9 @@ describe("printifyController (integration)", () => {
                 .send({ orderId: "ord-1", email: "a@b.com" });
 
             expect(res.status).toBe(404);
-            expect(res.body.error).toBe("Order not found.");
+            expect(res.body.error).toBe(PRINTIFY_ERRORS.ORDER_NOT_FOUND);
         });
 
-        // Returns 200 and mapped order status response when order is found
         it("POST /order-status -> 200 with mapped response", async () => {
             h.order.getOrderByCustomer.mockResolvedValue({
                 id: 1,
@@ -501,7 +509,6 @@ describe("printifyController (integration)", () => {
             );
         });
 
-        // Returns 500 if the service throws an error when fetching order status
         it("POST /order-status -> 500 when service throws", async () => {
             const errSpy = vi
                 .spyOn(console, "error")
@@ -520,7 +527,7 @@ describe("printifyController (integration)", () => {
                 .send({ orderId: "ord-1", email: "a@b.com" });
 
             expect(res.status).toBe(500);
-            expect(res.body.error).toBe("Failed to retrieve order status.");
+            expect(res.body.error).toBe(PRINTIFY_ERRORS.FAILED_ORDER_STATUS);
             expect(errSpy).toHaveBeenCalled();
             errSpy.mockRestore();
         });

@@ -32,7 +32,7 @@ vi.mock("../../../src/db/connection", () => {
 /**
  * Helper to cast a function to a Vitest Mock type.
  */
-const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
+const asMock = <T extends Function>(fn: unknown) => fn as Mock;
 
 describe("blogsService (unit)", () => {
     beforeEach(() => {

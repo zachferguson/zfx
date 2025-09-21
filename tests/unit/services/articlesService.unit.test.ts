@@ -34,7 +34,7 @@ import {
 } from "../../../src/services/articlesService";
 
 // handy helpers
-const asMock = <T extends Function>(fn: unknown) => fn as unknown as T;
+const asMock = <T extends Function>(fn: unknown) => fn as T;
 
 describe("articlesService (unit)", () => {
     beforeEach(() => {

@@ -1,4 +1,3 @@
-//import dotenv from "dotenv";
 import "dotenv/config";
 import { describe, it, expect } from "vitest";
 import { PrintifyService } from "../../../src/services/printifyService";
@@ -17,12 +16,9 @@ import { PrintifyService } from "../../../src/services/printifyService";
  * - getShippingRates: returns available shipping options for a payload
  */
 
-// Load .env from project root
-//dotenv.config({ path: require("path").resolve(__dirname, "../../../.env") });
-
 const API_KEY = process.env.PRINTIFY_API_KEY || "";
 const STORE_ID = process.env.PRINTIFY_STORE_ID || "20416540";
-const ORDER_ID = process.env.PRINTIFY_ORDER_ID || "68b85ca26e250553050d5896"; // real order (optional)
+const ORDER_ID = process.env.PRINTIFY_ORDER_ID || "68b85ca26e250553050d5896"; // optional real order
 
 const SHIPPING_ADDRESS = {
     address_to: {
@@ -56,7 +52,9 @@ describe.runIf(CAN_RUN)("PrintifyService (integration)", () => {
         it(
             "getProducts returns products for store",
             async () => {
-                const products = await svc.getProducts(STORE_ID);
+                const products: any = await svc.getProducts(STORE_ID);
+                // The service returns Printify's `data` or already-flattened array depending on API;
+                // accept either to keep the test robust.
                 expect(
                     Array.isArray(products?.data) || Array.isArray(products)
                 ).toBe(true);
@@ -69,7 +67,7 @@ describe.runIf(CAN_RUN)("PrintifyService (integration)", () => {
         // Should fetch a real order when PRINTIFY_ORDER_ID is provided
         it("getOrder fetches a real order", async () => {
             if (!ORDER_ID) {
-                expect(ORDER_ID).toBeTruthy(); // explicit guard so the test is meaningful
+                expect(ORDER_ID).toBeTruthy(); // guard for meaningful execution
                 return;
             }
             const order = await svc.getOrder(STORE_ID, ORDER_ID);
@@ -89,22 +87,15 @@ describe.runIf(CAN_RUN)("PrintifyService (integration)", () => {
             expect(std!.price).toBeGreaterThan(0);
         });
 
+        // Alternative broader assertion (kept here for future ref)
         // it("getShippingRates returns shipping options", async () => {
-        //     const rates = await svc.getShippingRates(
-        //         STORE_ID,
-        //         SHIPPING_ADDRESS as any
-        //     );
-        //     expect(Array.isArray(rates)).toBe(true);
-        //     expect(rates.length).toBeGreaterThan(0);
-        //     // optional: assert a specific code exists
-        //     const hasKnown = rates.some(
-        //         (r) =>
-        //             r.code === "standard" ||
-        //             r.code === "economy" ||
-        //             r.code === "express" ||
-        //             r.code === "priority"
-        //     );
-        //     expect(hasKnown).toBe(true);
+        //   const rates = await svc.getShippingRates(STORE_ID, SHIPPING_ADDRESS as any);
+        //   expect(Array.isArray(rates)).toBe(true);
+        //   expect(rates.length).toBeGreaterThan(0);
+        //   const hasKnown = rates.some(
+        //     (r) => r.code === "standard" || r.code === "economy" || r.code === "express" || r.code === "priority"
+        //   );
+        //   expect(hasKnown).toBe(true);
         // });
     });
 });
@@ -112,7 +103,6 @@ describe.runIf(CAN_RUN)("PrintifyService (integration)", () => {
 describe.runIf(!CAN_RUN)(
     "PrintifyService (integration) — skipped (missing env vars)",
     () => {
-        // Should be skipped when API key or store id is not available
         it("skipped due to missing PRINTIFY_API_KEY or PRINTIFY_STORE_ID", () => {});
     }
 );

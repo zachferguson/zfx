@@ -1,57 +1,74 @@
-import { describe, it, expect, vi, Mock, afterEach } from "vitest";
-import axios from "axios";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PrintifyService } from "../../../src/services/printifyService";
 
 /**
- * @file Unit tests for PrintifyService.
+ * @file Unit tests for PrintifyService (axios.create-based).
  *
- * These tests verify the behavior of PrintifyService methods using a mocked axios instance.
- *
- * Scenarios covered:
- * - getProducts: returns data, throws friendly errors
- * - getShippingRates: normalizes response, throws friendly errors
- * - sendOrderToProduction: calls axios, throws friendly errors
- * - submitOrder: formats payload, fills defaults, throws friendly errors
- * - getOrder: returns order, throws friendly errors
+ * We hoist axios spies with vi.hoisted so the vi.mock factory can use them safely.
+ * The service sets headers in axios.create(...), so we assert that in constructor,
+ * and we do NOT assert per-request headers anymore.
  */
 
-vi.mock("axios", () => {
-    const post = vi.fn();
-    const get = vi.fn();
-    const isAxiosError = () => false;
-    return { default: { post, get, isAxiosError } };
+// Hoisted spies used by the mock factory (required by Vitest hoisting rules)
+const { axGet, axPost, axCreate } = vi.hoisted(() => {
+    return {
+        axGet: vi.fn(),
+        axPost: vi.fn(),
+        axCreate: vi.fn(),
+    };
 });
 
-const ax = vi.mocked(axios);
-const svc = new PrintifyService("api-key-123");
-const axGet = ax.get as unknown as Mock;
-const axPost = (axios as any).post as unknown as Mock;
+// Mock axios to return an instance with get/post methods
+vi.mock("axios", () => {
+    axCreate.mockImplementation(() => ({ get: axGet, post: axPost }));
+    return { default: { create: axCreate } };
+});
 
 describe("PrintifyService (unit)", () => {
+    const API_KEY = "api-key-123";
+    let svc: PrintifyService;
+
+    beforeEach(() => {
+        axGet.mockReset();
+        axPost.mockReset();
+        axCreate.mockClear();
+        svc = new PrintifyService(API_KEY);
+    });
+
     afterEach(() => {
         vi.clearAllMocks();
     });
+
+    describe("constructor", () => {
+        it("creates axios instance with Authorization header", () => {
+            expect(axCreate).toHaveBeenCalledTimes(1);
+            const [cfg] = axCreate.mock.calls[0];
+            expect(cfg).toMatchObject({
+                headers: { Authorization: `Bearer ${API_KEY}` },
+            });
+            expect(String(cfg.baseURL)).toContain("printify.com");
+        });
+    });
+
     describe("getProducts", () => {
-        it("returns data and sends auth header", async () => {
+        it("returns data", async () => {
             axGet.mockResolvedValue({ data: [{ id: "p1" }] });
             const data = await svc.getProducts("store-1");
             expect(data).toEqual([{ id: "p1" }]);
-            expect(axGet).toHaveBeenCalledTimes(1);
-            const [url, cfg] = axGet.mock.calls[0];
-            expect(url).toContain("/shops/store-1/products.json");
-            expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
+            expect(axGet).toHaveBeenCalledWith("/shops/store-1/products.json");
         });
-        it("throws friendly error with server message when axios fails", async () => {
+
+        it("throws friendly error with server message", async () => {
             axGet.mockRejectedValue({
                 response: { data: { message: "bad things" } },
-                message: "boom",
             });
             await expect(svc.getProducts("store-1")).rejects.toThrow(
                 "Failed to fetch products from Printify: bad things"
             );
         });
-        it("throws friendly error with Unknown error when no server message", async () => {
-            axGet.mockRejectedValue({ message: "network-down" });
+
+        it("throws friendly error with Unknown error fallback", async () => {
+            axGet.mockRejectedValue({ message: "down" });
             await expect(svc.getProducts("store-1")).rejects.toThrow(
                 "Failed to fetch products from Printify: Unknown error"
             );
@@ -59,33 +76,32 @@ describe("PrintifyService (unit)", () => {
     });
 
     describe("getShippingRates", () => {
-        it("passes through array response", async () => {
-            axPost.mockResolvedValue({
-                data: { economy: 399, standard: 499 },
-            });
+        it("normalizes response to sorted array", async () => {
+            axPost.mockResolvedValue({ data: { economy: 399, standard: 499 } });
             const body = {
                 address_to: { country: "US", zip: "10001" },
                 line_items: [{ product_id: 1, variant_id: 2, quantity: 1 }],
             };
-            const res = await svc.getShippingRates("store-9", body as any);
-            expect(res).toEqual([
+            const out = await svc.getShippingRates("store-9", body as any);
+            expect(out).toEqual([
                 { code: "economy", price: 399 },
                 { code: "standard", price: 499 },
             ]);
-            const [url, payload, cfg] = axPost.mock.calls[0];
-            expect(url).toContain("/shops/store-9/orders/shipping.json");
-            expect(payload).toEqual(body);
-            expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
-            expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
+            expect(axPost).toHaveBeenCalledWith(
+                "/shops/store-9/orders/shipping.json",
+                body
+            );
         });
+
         it("normalizes numeric 'standard' to array", async () => {
             axPost.mockResolvedValue({ data: { standard: 123 } });
-            const res = await svc.getShippingRates("s", {
+            const out = await svc.getShippingRates("s", {
                 address_to: { country: "US", zip: "10001" },
                 line_items: [{ product_id: 1, variant_id: 2, quantity: 1 }],
             } as any);
-            expect(res).toEqual([{ code: "standard", price: 123 }]);
+            expect(out).toEqual([{ code: "standard", price: 123 }]);
         });
+
         it("throws friendly error on axios failure", async () => {
             axPost.mockRejectedValue(new Error("nope"));
             await expect(
@@ -100,21 +116,18 @@ describe("PrintifyService (unit)", () => {
     });
 
     describe("sendOrderToProduction", () => {
-        it("calls axios.post with empty body and headers", async () => {
+        it("POSTs with empty body", async () => {
             axPost.mockResolvedValue({ data: { ok: true } });
             await svc.sendOrderToProduction("store-1", "ord-9");
-            const [url, payload, cfg] = axPost.mock.calls[0];
-            expect(url).toContain(
-                "/shops/store-1/orders/ord-9/send_to_production.json"
+            expect(axPost).toHaveBeenCalledWith(
+                "/shops/store-1/orders/ord-9/send_to_production.json",
+                {}
             );
-            expect(payload).toEqual({});
-            expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
-            expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
         });
+
         it("throws friendly error including server message when present", async () => {
             axPost.mockRejectedValue({
                 response: { data: { message: "cannot send" } },
-                message: "boom",
             });
             await expect(
                 svc.sendOrderToProduction("store-1", "ord-9")
@@ -122,6 +135,7 @@ describe("PrintifyService (unit)", () => {
                 "Failed to send order to production: cannot send"
             );
         });
+
         it("throws Unknown error fallback", async () => {
             axPost.mockRejectedValue({ message: "bad" });
             await expect(
@@ -133,7 +147,7 @@ describe("PrintifyService (unit)", () => {
     });
 
     describe("submitOrder", () => {
-        it("formats payload, sends headers, and returns data", async () => {
+        it("formats payload and returns response data", async () => {
             axPost.mockResolvedValue({ data: { id: "po-1" } });
             const orderReq = {
                 total_price: 2000,
@@ -169,13 +183,11 @@ describe("PrintifyService (unit)", () => {
                     },
                 ],
             } as any;
+
             const out = await svc.submitOrder("store-1", "ext-123", orderReq);
             expect(out).toEqual({ id: "po-1" });
-            const [url, payload, cfg] = axPost.mock.calls[0];
-            expect(url).toContain("/shops/store-1/orders.json");
-            expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
-            expect(cfg?.headers?.["Content-Type"]).toBe("application/json");
-            expect(payload).toEqual(
+            expect(axPost).toHaveBeenCalledWith(
+                "/shops/store-1/orders.json",
                 expect.objectContaining({
                     external_id: "ext-123",
                     total_price: 2000,
@@ -199,6 +211,7 @@ describe("PrintifyService (unit)", () => {
                 })
             );
         });
+
         it("fills default phone/region/address2 when missing", async () => {
             axPost.mockResolvedValue({ data: { id: "po-2" } });
             const orderReq = {
@@ -218,18 +231,19 @@ describe("PrintifyService (unit)", () => {
                 },
                 line_items: [],
             } as any;
+
             await svc.submitOrder("store-2", "ext-9", orderReq);
             const [_url, payload] = axPost.mock.calls[0];
             expect(payload.address_to.phone).toBe("000-000-0000");
             expect(payload.address_to.region).toBe("");
             expect(payload.address_to.address2).toBe("");
         });
+
         it("throws friendly error with server message", async () => {
-            const error = new Error("boom");
-            Object.setPrototypeOf(error, {
+            axPost.mockRejectedValue({
                 response: { data: { message: "rate limited" } },
             });
-            axPost.mockRejectedValue(error);
+
             const orderData = {
                 customer: {
                     email: "test@example.com",
@@ -251,12 +265,14 @@ describe("PrintifyService (unit)", () => {
                 shipping_method: "STANDARD",
                 shipping_cost: 100,
             };
+
             await expect(
                 svc.submitOrder("store-1", "ext-1", orderData as any)
             ).rejects.toThrow(
                 "Failed to submit order to Printify: rate limited"
             );
         });
+
         it("throws Unknown error fallback", async () => {
             axPost.mockRejectedValue({ message: "boom" });
             await expect(
@@ -268,16 +284,17 @@ describe("PrintifyService (unit)", () => {
     });
 
     describe("getOrder", () => {
-        it("returns order and sets header", async () => {
+        it("returns order", async () => {
             axGet.mockResolvedValue({
                 data: { id: "po-77", status: "in_production" },
             });
             const out = await svc.getOrder("store-1", "po-77");
             expect(out).toEqual({ id: "po-77", status: "in_production" });
-            const [url, cfg] = axGet.mock.calls[0];
-            expect(url).toContain("/shops/store-1/orders/po-77.json");
-            expect(cfg?.headers?.Authorization).toBe("Bearer api-key-123");
+            expect(axGet).toHaveBeenCalledWith(
+                "/shops/store-1/orders/po-77.json"
+            );
         });
+
         it("throws friendly error on failure", async () => {
             axGet.mockRejectedValue(new Error("down"));
             await expect(svc.getOrder("s", "po-x")).rejects.toThrow(

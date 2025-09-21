@@ -86,7 +86,7 @@ describe("authenticationRoutes (unit)", () => {
 
     it("GET /auth/profile -> 200 when verifyToken passes through and sets user", async () => {
         h.mw.verifyToken.mockImplementationOnce((req, _res, next) => {
-            (req as any).user = { id: 1, username: "zach", role: "user" };
+            (req).user = { id: 1, username: "zach", role: "user" };
             next();
         });
         const res = await request(app).get("/auth/profile");

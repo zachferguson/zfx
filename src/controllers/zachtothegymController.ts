@@ -12,14 +12,6 @@ import {
 import { DailyMetrics } from "../types/dailyMetrics";
 import { ZACHTOTHEGYM_ERRORS } from "../config/zachtothegymErrors";
 import { validationResult } from "express-validator";
-import {
-    validateGetSingleBlogById,
-    validateCreateNewBlog,
-    validateGetSingleArticleById,
-    validateCreateNewArticle,
-    validateAddDailyMetrics,
-    validateGetDailyMetrics,
-} from "../validators/zachtothegymValidators";
 
 /**
  * Gets all blogs.
@@ -30,7 +22,7 @@ import {
  * @returns {Promise<void>} Sends response via res object.
  * @note On success, responds with 200 and an array of blogs. On error, responds with 500 and an error message.
  */
-export const getBlogs = async (req: Request, res: Response) => {
+export const getBlogs = async (_: Request, res: Response) => {
     try {
         const blogs = await getAllBlogs();
         res.status(200).json(blogs);
@@ -106,7 +98,7 @@ export const createNewBlog = async (req: Request, res: Response) => {
  * @returns {Promise<void>} Sends response via res object.
  * @note In TypeScript, Express handlers should omit the return type for flexibility. See project docs or Swagger for response details.
  */
-export const getArticles = async (req: Request, res: Response) => {
+export const getArticles = async (_: Request, res: Response) => {
     try {
         const articles = await getAllArticles();
         res.status(200).json(articles);

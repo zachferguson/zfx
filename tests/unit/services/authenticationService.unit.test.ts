@@ -48,7 +48,7 @@ import {
 } from "../../../src/services/authenticationService";
 
 // tiny helper for TS to use mock.* safely
-const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
+const asMock = <T extends Function>(fn: unknown) => fn as Mock;
 
 describe("authenticationService (unit)", () => {
     const OLD_ENV = process.env;

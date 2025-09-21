@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+        /* Language & Module */
+        "target": "ES2022",
+        "module": "commonjs",
+        "moduleResolution": "node",
+
+        /* Node / Interop */
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "types": ["node", "vitest/globals"],
+
+        /* Strictness */
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "verbatimModuleSyntax": false,
+        "useUnknownInCatchVariables": true,
+        "exactOptionalPropertyTypes": true,
+        "noUncheckedIndexedAccess": true,
+        "skipLibCheck": true,
+
+        /* Don’t emit by default (build config will override) */
+        "noEmit": true
+    }
+}
