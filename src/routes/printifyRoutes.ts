@@ -11,16 +11,13 @@ import {
  * They’re the functions returned by createPrintifyController.
  */
 export type PrintifyControllerHandlers = {
-    getProducts: (req: express.Request, res: express.Response) => Promise<void>;
-    getShippingOptions: (
+    getProducts(req: express.Request, res: express.Response): Promise<void>;
+    getShippingOptions(
         req: express.Request,
         res: express.Response
-    ) => Promise<void>;
-    submitOrder: (req: express.Request, res: express.Response) => Promise<void>;
-    getOrderStatus: (
-        req: express.Request,
-        res: express.Response
-    ) => Promise<void>;
+    ): Promise<void>;
+    submitOrder(req: express.Request, res: express.Response): Promise<void>;
+    getOrderStatus(req: express.Request, res: express.Response): Promise<void>;
 };
 
 /**
