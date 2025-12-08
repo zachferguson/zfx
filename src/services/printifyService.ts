@@ -8,23 +8,56 @@ import type {
     PrintifyOrderResponse,
 } from "../types/printifyOrder";
 
+/**
+ * Contract for Printify operations used by controllers.
+ */
 export interface IPrintifyService {
-    /** Retrieves paginated products for a store. */
+    /**
+     * Retrieves products for a store.
+     *
+     * @param {string} storeId - Printify store identifier.
+     * @returns {Promise<unknown>} Raw products payload (paginated).
+     */
     getProducts(storeId: string): Promise<unknown>; // Keep loose unless you define ProductPage type
-    /** Retrieves and normalizes shipping rates. */
+    /**
+     * Retrieves and normalizes shipping rates for an order.
+     *
+     * @param {string} storeId - Printify store identifier.
+     * @param {ShippingRatesRequestBody} requestBody - Shipping request payload.
+     * @returns {Promise<ShippingRates>} Array of `{ code, price }` in cents.
+     */
     getShippingRates(
         storeId: string,
         requestBody: ShippingRatesRequestBody
     ): Promise<ShippingRates>;
-    /** Sends an order to production. */
+    /**
+     * Sends an order to production.
+     *
+     * @param {string} storeId - Printify store identifier.
+     * @param {string} orderId - Printify order identifier.
+     * @returns {Promise<void>} No return value.
+     */
     sendOrderToProduction(storeId: string, orderId: string): Promise<void>;
-    /** Submits a new order. */
+    /**
+     * Submits a new order.
+     *
+     * @param {string} storeId - Printify store identifier.
+     * @param {string} orderNumber - External order number.
+     * @param {PrintifyOrderRequest} orderData - Order payload.
+     * @returns {Promise<PrintifyOrderResponse>} Submitted order response.
+     */
     submitOrder(
         storeId: string,
         orderNumber: string,
         orderData: PrintifyOrderRequest
     ): Promise<PrintifyOrderResponse>;
-    /** Retrieves a specific order by id. */
+    /**
+     * Retrieves a specific order by id.
+     *
+     * @param {string} storeId - Printify store identifier.
+     * @param {string} printifyOrderId - Printify order identifier.
+     * @returns {Promise<PrintifyOrderResponse>} Order details.
+     */
     getOrder(
         storeId: string,
         printifyOrderId: string
@@ -55,10 +88,14 @@ type PrintifyShippingResponseRaw = {
 
 /**
  * Normalize Printify shipping response to a stable, deduped array.
+ *
  * - If both legacy `express` and `priority` show up, keep the cheaper as `priority`.
  * - Stable display order for ties: economy → standard → express → priority.
+ *
+ * @param {PrintifyShippingResponseRaw} raw - Raw Printify shipping response.
+ * @returns {ShippingRates} Array of `{ code, price }` in cents, sorted ascending by price.
  */
-function normalizeShipping(raw: PrintifyShippingResponseRaw): ShippingRates {
+const normalizeShipping = (raw: PrintifyShippingResponseRaw): ShippingRates => {
     const best: Partial<
         Record<"economy" | "standard" | "express" | "priority", number>
     > = {};
@@ -84,7 +121,7 @@ function normalizeShipping(raw: PrintifyShippingResponseRaw): ShippingRates {
         (a, b) =>
             a.price - b.price || ORDER.indexOf(a.code) - ORDER.indexOf(b.code)
     );
-}
+};
 
 /**
  * Service for interacting with the Printify API.
@@ -150,9 +187,7 @@ export class PrintifyService implements IPrintifyService {
         this.logger = deps.logger ?? console;
     }
 
-    /**
-     * Retrieves all products for a given store.
-     */
+    /** Gets products for a given store. */
     /** @inheritdoc */
     async getProducts(storeId: string): Promise<unknown> {
         try {
@@ -172,10 +207,7 @@ export class PrintifyService implements IPrintifyService {
         }
     }
 
-    /**
-     * Retrieves shipping rates for an order and normalizes them.
-     * Returns array of { code, price } in cents, ascending by price.
-     */
+    /** Retrieves and normalizes shipping rates for an order. */
     /** @inheritdoc */
     async getShippingRates(
         storeId: string,
@@ -197,9 +229,7 @@ export class PrintifyService implements IPrintifyService {
         }
     }
 
-    /**
-     * Sends an order to production.
-     */
+    /** Sends an order to production. */
     /** @inheritdoc */
     async sendOrderToProduction(
         storeId: string,
@@ -221,9 +251,7 @@ export class PrintifyService implements IPrintifyService {
         }
     }
 
-    /**
-     * Submits a new order tp printify.
-     */
+    /** Submits a new order to Printify. */
     /** @inheritdoc */
     async submitOrder(
         storeId: string,
@@ -277,9 +305,7 @@ export class PrintifyService implements IPrintifyService {
         }
     }
 
-    /**
-     * Retrieves a specific order.
-     */
+    /** Retrieves a specific order. */
     /** @inheritdoc */
     async getOrder(
         storeId: string,

@@ -23,5 +23,6 @@ const rounds = parseInt(requireEnv("BCRYPT_SALT_ROUNDS"), 10);
 const authService = new AuthenticationService(db, jwtSecret, rounds);
 const controller = createAuthenticationController(authService);
 const mw = createAuthMiddleware(jwtSecret);
+/** Fully wired authentication router (ready for `app.use`). */
 const router = createAuthenticationRouter(controller, mw);
 export default router;

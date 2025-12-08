@@ -15,5 +15,6 @@ const mailer = new NodeMailerEmailService(STORE_EMAILS);
 const controller = createPrintifyController(printify, orders, mailer);
 
 // Export a fully wired router for app.ts
+/** Fully wired Printify router (ready for `app.use`). */
 const router = createPrintifyRouter(controller);
 export default router;

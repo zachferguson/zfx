@@ -9,7 +9,13 @@ const pgp: IMain = pgPromise({});
 
 let dbInstance: IDatabase<unknown> | null = null;
 
-function initDb(): IDatabase<unknown> {
+/**
+ * Initializes and caches the pg-promise database connection.
+ *
+ * @returns {IDatabase<unknown>} A pg-promise `IDatabase` instance.
+ * @remarks Reads required env vars (`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`). Throws if any are missing when first used.
+ */
+const initDb = (): IDatabase<unknown> => {
     if (dbInstance) return dbInstance;
 
     const {
@@ -39,10 +45,16 @@ function initDb(): IDatabase<unknown> {
     });
 
     return dbInstance;
-}
+};
 
-// Export a lazy proxy that looks like a pg-promise IDatabase. Accessing any
-// property/method will initialize the real connection on-demand.
+/**
+ * Lazy-initializing pg-promise database proxy.
+ *
+ * Accessing any property/method triggers `initDb()` and forwards calls to the
+ * real `IDatabase` instance.
+ *
+ * @remarks Defers connecting until first use; helpful for tests/CI and startup performance.
+ */
 const handler: ProxyHandler<IDatabase<unknown>> = {
     get(_target, prop) {
         const real = initDb();
@@ -57,6 +69,11 @@ const handler: ProxyHandler<IDatabase<unknown>> = {
     },
 };
 
+/**
+ * Default database export.
+ *
+ * @returns {IDatabase<unknown>} A proxy implementing `IDatabase` that lazily establishes the real connection upon first use.
+ */
 const dbProxy: IDatabase<unknown> = new Proxy(
     {} as IDatabase<unknown>,
     handler

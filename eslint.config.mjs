@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import jsdoc from "eslint-plugin-jsdoc";
 import tseslint from "typescript-eslint";
 import unusedImports from "eslint-plugin-unused-imports";
 import globals from "globals";
@@ -28,6 +29,7 @@ export default [
             "coverage/**",
             "vitest.config.*",
             "eslint.config.*",
+            "docs/**",
         ],
     },
 
@@ -64,6 +66,29 @@ export default [
         },
     },
 
+    // 🔹 JSDoc requirements for your real code (src)
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        plugins: { jsdoc },
+        rules: {
+            "jsdoc/require-jsdoc": [
+                "warn",
+                {
+                    publicOnly: true,
+                    require: {
+                        FunctionDeclaration: true,
+                        MethodDefinition: true,
+                        ClassDeclaration: true,
+                        ArrowFunctionExpression: false,
+                        FunctionExpression: false,
+                    },
+                },
+            ],
+            "jsdoc/require-param": "warn",
+            "jsdoc/require-returns": "warn",
+        },
+    },
+
     // Tests: relax noisy rules for mocks/spies & require()
     {
         files: ["tests/**/*.{ts,tsx}"],
@@ -80,6 +105,7 @@ export default [
             "@typescript-eslint/no-unused-vars": "off",
             "@typescript-eslint/unbound-method": "off", // ← only once now (no duplicate)
             "@typescript-eslint/no-require-imports": "off",
+            "jsdoc/require-jsdoc": "off",
         },
     },
 ];

@@ -22,33 +22,69 @@ type BlogIdParams = { id: string } & ParamsDictionary;
 type ArticleIdParams = { id: string } & ParamsDictionary;
 type MetricsQuery = { start: string; end: string };
 
+/**
+ * Functions required by the Zachtothegym controller.
+ */
 export type ZTGServices = {
+    /** Fetches all blogs. */
     getAllBlogs: typeof getAllBlogsFn;
+    /** Fetches a single blog by id. */
     getBlogById: typeof getBlogByIdFn;
+    /** Creates a new blog. */
     createBlog: typeof createBlogFn;
+    /** Fetches all articles. */
     getAllArticles: typeof getAllArticlesFn;
+    /** Fetches a single article by id. */
     getArticleById: typeof getArticleByIdFn;
+    /** Creates a new article. */
     createArticle: typeof createArticleFn;
+    /** Saves daily metrics payload. */
     saveDailyMetrics: typeof saveDailyMetricsFn;
+    /** Retrieves metrics within a date range. */
     getMetricsInRange: typeof getMetricsInRangeFn;
 };
 
+/**
+ * Map of Zachtothegym controller handlers.
+ */
 export type ZTGControllerHandlers = {
+    /** Responds with all blogs. */
     getBlogs: (_: Request, res: Response) => Promise<void>;
+    /** Responds with a single blog by id. */
     getSingleBlogById: (req: Request, res: Response) => Promise<void>;
+    /** Creates and returns a new blog. */
     createNewBlog: (req: Request, res: Response) => Promise<void>;
+    /** Responds with all articles. */
     getArticles: (_: Request, res: Response) => Promise<void>;
+    /** Responds with a single article by id. */
     getSingleArticleById: (req: Request, res: Response) => Promise<void>;
+    /** Creates and returns a new article. */
     createNewArticle: (req: Request, res: Response) => Promise<void>;
+    /** Saves daily metrics. */
     addDailyMetrics: (req: Request, res: Response) => Promise<void>;
+    /** Responds with metrics within a date range. */
     getDailyMetrics: (req: Request, res: Response) => Promise<void>;
 };
 
-export function createZachtothegymController(
+/**
+ * Creates handlers for Zachtothegym endpoints.
+ *
+ * @param {ZTGServices} services - Service functions for blogs, articles, and metrics.
+ * @returns {ZTGControllerHandlers} Object with handler functions.
+ */
+export const createZachtothegymController = (
     services: ZTGServices
-): ZTGControllerHandlers {
+): ZTGControllerHandlers => {
     return {
-        /** Gets all blogs */
+        /**
+         * Gets all blogs.
+         *
+         * @see GET /blogs
+         * @param {Request} _ - Express request (no params/body expected).
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 with array of blogs. On server error: 500 `{ error }`.
+         */
         getBlogs: async (_: Request, res: Response) => {
             try {
                 const blogs = await services.getAllBlogs();
@@ -61,7 +97,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Gets a single blog by ID */
+        /**
+         * Gets a single blog by ID.
+         *
+         * @see GET /blogs/:id
+         * @param {Request} req - Express request; params `{ id }`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 with blog. On validation error: 400 `{ errors }`. On not found: 404 `{ error }`. On server error: 500 `{ error }`.
+         */
         getSingleBlogById: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -90,7 +134,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Creates a new blog */
+        /**
+         * Creates a new blog.
+         *
+         * @see POST /blogs
+         * @param {Request} req - Express request; body `{ title, content, categories }`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 201 with created blog. On validation error: 400 `{ errors }`. On server error: 500 `{ error }`.
+         */
         createNewBlog: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -121,7 +173,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Gets all articles */
+        /**
+         * Gets all articles.
+         *
+         * @see GET /articles
+         * @param {Request} _ - Express request (no params/body expected).
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 with array of articles. On server error: 500 `{ error }`.
+         */
         getArticles: async (_: Request, res: Response) => {
             try {
                 const articles = await services.getAllArticles();
@@ -134,7 +194,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Gets a single article by ID */
+        /**
+         * Gets a single article by ID.
+         *
+         * @see GET /articles/:id
+         * @param {Request} req - Express request; params `{ id }`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 with article. On validation error: 400 `{ errors }`. On not found: 404 `{ error }`. On server error: 500 `{ error }`.
+         */
         getSingleArticleById: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -165,7 +233,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Creates a new article */
+        /**
+         * Creates a new article.
+         *
+         * @see POST /articles
+         * @param {Request} req - Express request; body `{ title, summary, content, categories }`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 201 with created article. On validation error: 400 `{ errors }`. On server error: 500 `{ error }`.
+         */
         createNewArticle: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -198,7 +274,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Adds daily metrics */
+        /**
+         * Adds daily metrics.
+         *
+         * @see POST /daily-metrics
+         * @param {Request} req - Express request; body `DailyMetrics`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 `{ message }`. On validation error: 400 `{ errors }`. On server error: 500 `{ error }`.
+         */
         addDailyMetrics: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -224,7 +308,15 @@ export function createZachtothegymController(
                 return;
             }
         },
-        /** Gets daily metrics by range */
+        /**
+         * Gets daily metrics by range.
+         *
+         * @see GET /daily-metrics
+         * @param {Request} req - Express request; query `{ start, end }` as ISO strings.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks On success: 200 with metrics array. On validation error: 400 `{ errors }`. On server error: 500 `{ error }`.
+         */
         getDailyMetrics: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -249,4 +341,4 @@ export function createZachtothegymController(
             }
         },
     };
-}
+};

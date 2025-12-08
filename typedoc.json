@@ -1,0 +1,29 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+
+    "entryPoints": ["src"],
+    "entryPointStrategy": "expand",
+
+    "tsconfig": "tsconfig.build.json",
+
+    "out": "docs",
+
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeInternal": true,
+
+    "validation": {
+        "notDocumented": true,
+        "invalidLink": true
+    },
+    "externalSymbolLinkMappings": {
+        "@types/node": {
+            "\"http\".Server": "#",
+            "\"http\".request": "#",
+            "\"http\".createServer": "#",
+            "\"http\".ClientRequest": "#",
+            "EventEmitter.defaultMaxListeners": "#"
+        }
+    },
+    "highlightLanguages": ["ts", "js", "json", "http", "console"]
+}

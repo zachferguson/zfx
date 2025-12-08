@@ -7,9 +7,20 @@ import { validateCreatePaymentIntent } from "../validators/paymentValidators";
  *
  * @module routes/paymentRoutes
  */
-export function createPaymentRouter(controller: PaymentControllerHandlers) {
-    const router = express.Router();
 
+/**
+ * Creates the payment router.
+ *
+ * @param {PaymentControllerHandlers} controller - Controller with `handleCreatePaymentIntent` handler.
+ * @returns {import('express').Router} Express router with `/create-payment-intent` route.
+ * @remarks Attaches validation middleware for payment intent creation.
+ */
+export const createPaymentRouter = (controller: PaymentControllerHandlers) => {
+    const router = express.Router();
+    /**
+     * Handles payment intent creation.
+     * @see POST /create-payment-intent
+     */
     router.post(
         "/create-payment-intent",
         validateCreatePaymentIntent,
@@ -17,13 +28,11 @@ export function createPaymentRouter(controller: PaymentControllerHandlers) {
     );
 
     return router;
-}
+};
 
 /**
- * Creates a Stripe payment intent for the given store, amount, and currency.
+ * Payment routes for Stripe payment intent creation.
  *
- * @route POST /create-payment-intent
- * @returns {Promise<void>} Sends response via res object.
- * @note On success, responds with 200 and the client secret. On error, responds with 400 (validation) or 500 (server error).
+ * @module routes/paymentRoutes
  */
 export default createPaymentRouter;

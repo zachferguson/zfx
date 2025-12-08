@@ -6,6 +6,9 @@ import printifyRoutes from "./routes/printifyRoutes.wired";
 import authenticationRoutes from "./routes/authenticationRoutes.wired";
 import paymentRoutes from "./routes/paymentRoutes.wired";
 
+/**
+ * Express application configured with CORS, JSON parsing, and route mounting.
+ */
 const app = express();
 
 const allowedOrigins = [
@@ -41,4 +44,7 @@ app.get("/health", (_req, res) => {
     res.status(200).json({ ok: true });
 });
 
+/**
+ * Default export of the configured Express app.
+ */
 export default app;

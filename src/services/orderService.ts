@@ -2,15 +2,38 @@ import type { IDatabase, ITask } from "pg-promise";
 import type { OrderLookup, OrderData } from "../types/order";
 
 // A connection can be the app-wide db or a transaction/task context
+/**
+ * pg-promise database or transactional context.
+ */
 export type DbOrTx = IDatabase<unknown> | ITask<unknown>;
 
+/**
+ * Result shape when creating a new order.
+ */
+export type SaveOrderResult = {
+    /** Newly created order record ID. */
+    id: string;
+};
+
+/**
+ * Contract for saving and retrieving orders.
+ */
 export interface IOrderService {
-    saveOrder(order: OrderData, cn?: DbOrTx): Promise<{ id: string }>;
+    /**
+     * Saves a new order.
+     *
+     * @param {OrderData} order - Order payload to persist.
+     * @param {DbOrTx} [cn] - Optional pg-promise context.
+     * @returns {Promise<{ id: string }>} Newly created order ID.
+     */
+    saveOrder(order: OrderData, cn?: DbOrTx): Promise<SaveOrderResult>;
+    /** Updates Printify order id for an existing order. */
     updatePrintifyOrderId(
         orderNumber: string,
         printifyOrderId: string,
         cn?: DbOrTx
     ): Promise<string>;
+    /** Retrieves order data by order number and customer email. */
     getOrderByCustomer(
         orderId: string,
         email: string,
@@ -18,18 +41,25 @@ export interface IOrderService {
     ): Promise<OrderLookup | null>;
 }
 
+/**
+ * PostgreSQL-backed implementation of `IOrderService`.
+ */
 export class PgOrderService implements IOrderService {
+    /**
+     * PostgreSQL-backed order service.
+     *
+     * @param {IDatabase<unknown>} db - pg-promise database instance.
+     */
     constructor(private readonly db: IDatabase<unknown>) {}
 
     /**
      * Saves a new order to the database.
-     * Optionally runs inside a provided transaction/task context.
      *
-     * @param order The order data to save.
-     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
-     * @returns The ID of the newly created order.
+     * @param {OrderData} order - Order payload to persist.
+     * @param {DbOrTx} [cn] - Optional pg-promise context.
+     * @returns {Promise<{ id: string }>} Newly created order ID.
      */
-    async saveOrder(order: OrderData, cn?: DbOrTx): Promise<{ id: string }> {
+    async saveOrder(order: OrderData, cn?: DbOrTx): Promise<SaveOrderResult> {
         const q = `
       INSERT INTO orders.printifyorders (
         order_number, store_id, email, total_price, currency,
@@ -41,7 +71,7 @@ export class PgOrderService implements IOrderService {
     `;
         try {
             const db = cn ?? this.db;
-            return await db.one<{ id: string }>(q, [
+            return await db.one<SaveOrderResult>(q, [
                 order.orderNumber,
                 order.storeId,
                 order.email,
@@ -65,12 +95,11 @@ export class PgOrderService implements IOrderService {
 
     /**
      * Updates the Printify order ID for a given order number.
-     * Optionally runs inside a provided transaction/task context.
      *
-     * @param orderNumber The order number to update.
-     * @param printifyOrderId The Printify order ID to set.
-     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
-     * @returns The ID of the updated order.
+     * @param {string} orderNumber - Order number to update.
+     * @param {string} printifyOrderId - Printify order ID to set.
+     * @param {DbOrTx} [cn] - Optional pg-promise context.
+     * @returns {Promise<string>} Updated order ID.
      */
     async updatePrintifyOrderId(
         orderNumber: string,
@@ -98,12 +127,11 @@ export class PgOrderService implements IOrderService {
 
     /**
      * Retrieves an order by order number and customer email.
-     * Optionally runs inside a provided transaction/task context.
      *
-     * @param orderId The order number to look up.
-     * @param email The customer's email address.
-     * @param cn Optional tx/db context (pg-promise task/tx). Defaults to shared db.
-     * @returns curated order row (subset) data as OrderLookup or null if not found.
+     * @param {string} orderId - Order number to look up.
+     * @param {string} email - Customer email.
+     * @param {DbOrTx} [cn] - Optional pg-promise context.
+     * @returns {Promise<OrderLookup | null>} Curated order subset or `null` if not found.
      */
     async getOrderByCustomer(
         orderId: string,

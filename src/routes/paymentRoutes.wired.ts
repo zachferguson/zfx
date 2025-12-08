@@ -13,5 +13,6 @@ const service = new StripeService((storeId) => {
 });
 
 const controller = createPaymentController(service);
+/** Fully wired payment router (ready for `app.use`). */
 const router = createPaymentRouter(controller);
 export default router;

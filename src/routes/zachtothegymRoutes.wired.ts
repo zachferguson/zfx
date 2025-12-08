@@ -12,7 +12,7 @@ import {
 } from "../services/metricsService";
 import { createAuthMiddleware } from "../middleware/authenticationMiddleware";
 
-function requireEnv(key: string): string {
+const requireEnv = (key: string): string => {
     const v = process.env[key];
     if (!v) {
         if (process.env.NODE_ENV === "test") {
@@ -21,7 +21,7 @@ function requireEnv(key: string): string {
         throw new Error(`${key} is missing`);
     }
     return v;
-}
+};
 
 const jwtSecret = requireEnv("JWT_SECRET");
 const controller = createZachtothegymController({
@@ -35,5 +35,6 @@ const controller = createZachtothegymController({
     getMetricsInRange,
 });
 const mw = createAuthMiddleware(jwtSecret);
+/** Fully wired Zachtothegym router (ready for `app.use`). */
 const router = createZachtothegymRouter(controller, mw);
 export default router;

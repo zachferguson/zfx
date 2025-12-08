@@ -3,12 +3,27 @@ import type { IDatabase, ITask } from "pg-promise";
 import { DailyMetrics } from "../types/dailyMetrics";
 
 // Any pg-promise connection-like object: the global db or a tx/task context.
-type DbOrTx = IDatabase<unknown> | ITask<unknown>;
+/**
+ * Connection context type: either the global pg-promise `db` or a transaction/task context.
+ */
+export type DbOrTx = IDatabase<unknown> | ITask<unknown>;
 type TxOrDb = DbOrTx;
+
+/**
+ * Utility to select the provided connection/transaction or fall back to the global `db`.
+ *
+ * @param {DbOrTx} [t] - Optional pg-promise database/transaction context.
+ * @returns {DbOrTx} Resolved connection context.
+ */
 const useDb = (t?: DbOrTx) => t ?? db;
 
 /**
- * Saves or updates daily metrics for a given date (UPSERT on PRIMARY KEY date).
+ * Saves or updates daily metrics for a given date.
+ *
+ * @param {DailyMetrics} metrics - Metrics payload for a single date.
+ * @param {DbOrTx} [cx] - Optional pg-promise context.
+ * @returns {Promise<void>} No return value.
+ * @remarks Performs an UPSERT on primary key `date` using `ON CONFLICT (date) DO UPDATE`.
  */
 export const saveDailyMetrics = async (
     metrics: DailyMetrics,
@@ -84,7 +99,12 @@ export const saveDailyMetrics = async (
 };
 
 /**
- * Retrieves daily metrics within a specified (inclusive) date range.
+ * Retrieves daily metrics within a specified inclusive date range.
+ *
+ * @param {string} startDate - Inclusive start date (ISO format).
+ * @param {string} endDate - Inclusive end date (ISO format).
+ * @param {TxOrDb} [cn=db] - Optional pg-promise context (defaults to global `db`).
+ * @returns {Promise<DailyMetrics[]>} Array of metrics ordered by `date` ascending.
  */
 export const getMetricsInRange = async (
     startDate: string,
@@ -101,7 +121,10 @@ export const getMetricsInRange = async (
 
 /**
  * Hard-deletes the metrics row for a specific date.
- * Returns the deleted row, or null if nothing matched.
+ *
+ * @param {string} date - Date to delete (ISO format).
+ * @param {TxOrDb} [cn=db] - Optional pg-promise context (defaults to global `db`).
+ * @returns {Promise<DailyMetrics | null>} The deleted row if matched; otherwise `null`.
  */
 export const deleteMetricsByDate = async (
     date: string,
@@ -117,7 +140,11 @@ export const deleteMetricsByDate = async (
 
 /**
  * Hard-deletes all metrics within an inclusive date range.
- * Returns the number of rows deleted.
+ *
+ * @param {string} startDate - Inclusive start date (ISO format).
+ * @param {string} endDate - Inclusive end date (ISO format).
+ * @param {TxOrDb} [cn=db] - Optional pg-promise context (defaults to global `db`).
+ * @returns {Promise<number>} Number of rows deleted.
  */
 export const deleteMetricsInRange = async (
     startDate: string,

@@ -60,14 +60,16 @@ export type EmailDeps = {
 
 /**
  * Safely extract a messageId string from a provider-specific sendMail response.
+ * @param info
+ * @returns {string | undefined} The messageId if present and valid, otherwise undefined.
  */
-function getMessageId(info: unknown): string | undefined {
+const getMessageId = (info: unknown): string | undefined => {
     if (info && typeof info === "object" && "messageId" in info) {
         const maybeId = (info as { messageId?: unknown }).messageId;
         return typeof maybeId === "string" ? maybeId : undefined;
     }
     return undefined;
-}
+};
 
 /**
  * Formats a number of cents as a localized currency string.
@@ -114,23 +116,12 @@ export const shippingMethodLabel = (idOrLabel: number | string) => {
  *          On success, returns a complete message object ready for `transporter.sendMail`.
  *          On failure, returns an error explaining the missing or invalid configuration.
  */
-export function composeOrderConfirmationEmail(params: {
+export const composeOrderConfirmationEmail = (params: {
     storeConfig: StoreEmailConfig;
     toEmail: string;
     orderId: string;
     payload: OrderConfirmationPayload;
-}):
-    | {
-          ok: true;
-          mail: {
-              from: string;
-              to: string;
-              subject: string;
-              text: string;
-              html: string;
-          };
-      }
-    | { ok: false; error: string } {
+}): EmailComposeSuccess | EmailComposeFailure => {
     const { storeConfig, toEmail, orderId, payload } = params;
 
     if (!storeConfig.user) {
@@ -276,7 +267,38 @@ Order Total: ${totalFormatted}
     };
 
     return { ok: true, mail };
-}
+};
+
+/**
+ * Successful result of composing an order confirmation email.
+ */
+export type EmailComposeSuccess = {
+    /** Indicates composition succeeded. */
+    ok: true;
+    /** Fully composed message compatible with Nodemailer `sendMail`. */
+    mail: {
+        /** Sender address (formatted). */
+        from: string;
+        /** Recipient address. */
+        to: string;
+        /** Email subject. */
+        subject: string;
+        /** Plain-text body. */
+        text: string;
+        /** HTML body. */
+        html: string;
+    };
+};
+
+/**
+ * Failure result of composing an order confirmation email.
+ */
+export type EmailComposeFailure = {
+    /** Indicates composition failed. */
+    ok: false;
+    /** Error explaining why composition failed. */
+    error: string;
+};
 
 /**
  * Nodemailer-backed email service implementation.

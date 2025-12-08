@@ -12,25 +12,37 @@ import {
 
 import type { AuthRequest } from "../middleware/authenticationMiddleware";
 
+/**
+ * Authentication middleware handlers used by protected ZTG routes.
+ */
 export type AuthMiddlewareHandlers = {
+    /** Verifies a Bearer token and attaches `user` to the request. */
     verifyToken: (req: AuthRequest, res: Response, next: NextFunction) => void;
 };
 
-export function createZachtothegymRouter(
+/**
+ * Creates the Zachtothegym router.
+ *
+ * @param {ZTGControllerHandlers} controller - Controller with blog, article, and metrics handlers.
+ * @param {AuthMiddlewareHandlers} mw - Authentication middleware providing `verifyToken`.
+ * @returns {import('express').Router} Express router for Zachtothegym endpoints.
+ * @remarks Attaches validation middleware for each route; POST routes require Bearer token.
+ */
+export const createZachtothegymRouter = (
     controller: ZTGControllerHandlers,
     mw: AuthMiddlewareHandlers
-) {
+) => {
     const router = Router();
 
     /**
      * Gets all blogs.
-     * @route GET /blogs
+     * @see GET /blogs
      */
     router.get("/blogs", controller.getBlogs);
 
     /**
      * Gets a single blog by ID.
-     * @route GET /blogs/:id
+     * @see GET /blogs/:id
      */
     router.get(
         "/blogs/:id",
@@ -40,7 +52,7 @@ export function createZachtothegymRouter(
 
     /**
      * Creates a new blog.
-     * @route POST /blogs
+     * @see POST /blogs
      */
     router.post(
         "/blogs",
@@ -51,13 +63,13 @@ export function createZachtothegymRouter(
 
     /**
      * Gets all articles.
-     * @route GET /articles
+     * @see GET /articles
      */
     router.get("/articles", controller.getArticles);
 
     /**
      * Gets a single article by ID.
-     * @route GET /articles/:id
+     * @see GET /articles/:id
      */
     router.get(
         "/articles/:id",
@@ -67,7 +79,7 @@ export function createZachtothegymRouter(
 
     /**
      * Creates a new article.
-     * @route POST /articles
+     * @see POST /articles
      */
     router.post(
         "/articles",
@@ -78,7 +90,7 @@ export function createZachtothegymRouter(
 
     /**
      * Adds daily metrics.
-     * @route POST /daily-metrics
+     * @see POST /daily-metrics
      */
     router.post(
         "/daily-metrics",
@@ -89,7 +101,7 @@ export function createZachtothegymRouter(
 
     /**
      * Gets daily metrics in a date range.
-     * @route GET /daily-metrics
+     * @see GET /daily-metrics
      */
     router.get(
         "/daily-metrics",
@@ -98,7 +110,7 @@ export function createZachtothegymRouter(
     );
 
     return router;
-}
+};
 
 // For convenience, allow default export = factory (matches Printify pattern)
 export default createZachtothegymRouter;

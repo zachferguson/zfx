@@ -26,13 +26,22 @@ jobs:
                   else
                     npm install
                   fi
-
+            # Run lint before anything else expensive
+            - name: Lint
+              run: npm run lint
+              env:
+                  CI: true
             # Build is optional for Vitest, but harmless to keep
             - name: Build (if present)
               run: npm run build --if-present
               env:
                   CI: true
 
+            # Docs check
+            - name: Generate & validate docs
+              run: npm run docs
+              env:
+                  CI: true
             - name: Run tests with coverage
               run: npm run coverage
               env:

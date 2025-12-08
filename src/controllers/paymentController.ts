@@ -6,25 +6,41 @@ import { validationResult, type ValidationError } from "express-validator";
 import type { ParamsDictionary } from "express-serve-static-core";
 
 /**
- * Creates a Stripe payment intent for the given store, amount, and currency.
+ * Payment controller handler signatures.
  *
- * @route POST /payment-intent
- * @param {Request} req - Express request object, expects { storeId, amount, currency } in body
- * @param {Response} res - Express response object
- * @returns {Promise<void>} Sends response via res object.
- * @note In TypeScript, Express handlers should omit the return type because they do not return a value; all responses are sent via the res object. This is an intentional exception to the project's explicit return type rule.
+ * @remarks Defines the function types used by the payment controller.
+ */
+/**
+ * Map of payment controller handlers.
  */
 export type PaymentControllerHandlers = {
+    /** Creates a Stripe payment intent. */
     handleCreatePaymentIntent: (
         req: Request<ParamsDictionary, unknown, CreatePaymentIntentRequest>,
         res: Response
     ) => Promise<void>;
 };
 
-export function createPaymentController(
+/**
+ * Creates the payment controller handlers.
+ *
+ * @param {IStripeService} service - Stripe service providing `createPaymentIntent`.
+ * @returns {PaymentControllerHandlers} Object containing the `handleCreatePaymentIntent` handler.
+ * @remarks Wires `handleCreatePaymentIntent` to the provided `IStripeService`; all responses are sent via `res`.
+ */
+export const createPaymentController = (
     service: IStripeService
-): PaymentControllerHandlers {
+): PaymentControllerHandlers => {
     return {
+        /**
+         * Creates a payment intent.
+         *
+         * @see POST /payment-intent
+         * @param {Request<ParamsDictionary, unknown, CreatePaymentIntentRequest>} req - Express request; body `{ storeId, amount, currency }`.
+         * @param {Response} res - Express response object.
+         * @returns {Promise<void>} Sends response via `res`; no return value.
+         * @remarks Uses Stripe to create a payment intent; supports multiple stores via `storeId`. On success: 200 `{ clientSecret }`. On validation error: 400 `{ errors }`. On server error: 500 `{ error }`.
+         */
         handleCreatePaymentIntent: async (
             req: Request<ParamsDictionary, unknown, CreatePaymentIntentRequest>,
             res: Response
@@ -54,4 +70,4 @@ export function createPaymentController(
             }
         },
     };
-}
+};
