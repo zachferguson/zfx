@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 import db from "../../../src/db/connection";
 import {

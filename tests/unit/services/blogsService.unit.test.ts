@@ -1,3 +1,4 @@
+// @ts-nocheck
 import db from "../../../src/db/connection";
 import {
     getAllBlogs,

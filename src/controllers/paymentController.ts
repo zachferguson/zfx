@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import type { IStripeService } from "../services/stripeService";
 import type { CreatePaymentIntentRequest } from "../types/createPaymentIntentRequest";
 import { PAYMENT_ERRORS } from "../config/paymentErrors";
-import { validationResult, type ValidationError } from "express-validator";
+import { validationResult } from "express-validator";
+import { sendError } from "../utils/sendError";
 import type { ParamsDictionary } from "express-serve-static-core";
 
 /**
@@ -47,11 +48,11 @@ export const createPaymentController = (
         ): Promise<void> => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             try {
@@ -65,7 +66,7 @@ export const createPaymentController = (
                 return;
             } catch (error) {
                 console.error("Payment intent creation failed:", error);
-                res.status(500).json({ error: PAYMENT_ERRORS.PAYMENT_FAILED });
+                sendError(res, 500, PAYMENT_ERRORS.PAYMENT_FAILED);
                 return;
             }
         },

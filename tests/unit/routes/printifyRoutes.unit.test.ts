@@ -1,3 +1,4 @@
+// @ts-nocheck
 // tests/unit/routes/printifyRoutes.unit.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";

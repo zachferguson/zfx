@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import * as expressValidator from "express-validator";
 import * as AuthSvc from "../../../src/services/authenticationService";

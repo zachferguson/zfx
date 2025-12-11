@@ -16,7 +16,8 @@ import {
 } from "../services/metricsService";
 import { DailyMetrics } from "../types/dailyMetrics";
 import { ZACHTOTHEGYM_ERRORS } from "../config/zachtothegymErrors";
-import { validationResult, type ValidationError } from "express-validator";
+import { validationResult } from "express-validator";
+import { sendError } from "../utils/sendError";
 
 type BlogIdParams = { id: string } & ParamsDictionary;
 type ArticleIdParams = { id: string } & ParamsDictionary;
@@ -91,9 +92,7 @@ export const createZachtothegymController = (
                 res.status(200).json(blogs);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOGS,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOGS);
                 return;
             }
         },
@@ -109,28 +108,24 @@ export const createZachtothegymController = (
         getSingleBlogById: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const blogId = Number((req.params as Partial<BlogIdParams>).id);
             try {
                 const blog = await services.getBlogById(blogId);
                 if (!blog) {
-                    res.status(404).json({
-                        error: ZACHTOTHEGYM_ERRORS.BLOG_NOT_FOUND,
-                    });
+                    sendError(res, 404, ZACHTOTHEGYM_ERRORS.BLOG_NOT_FOUND);
                     return;
                 }
                 res.status(200).json(blog);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOG,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOG);
                 return;
             }
         },
@@ -146,11 +141,11 @@ export const createZachtothegymController = (
         createNewBlog: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const { title, content, categories } = req.body as {
@@ -167,9 +162,7 @@ export const createZachtothegymController = (
                 res.status(201).json(newBlog);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_CREATE_BLOG,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_CREATE_BLOG);
                 return;
             }
         },
@@ -188,9 +181,7 @@ export const createZachtothegymController = (
                 res.status(200).json(articles);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_ARTICLES,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_FETCH_ARTICLES);
                 return;
             }
         },
@@ -206,11 +197,11 @@ export const createZachtothegymController = (
         getSingleArticleById: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const articleId = Number(
@@ -219,17 +210,13 @@ export const createZachtothegymController = (
             try {
                 const article = await services.getArticleById(articleId);
                 if (!article) {
-                    res.status(404).json({
-                        error: ZACHTOTHEGYM_ERRORS.ARTICLE_NOT_FOUND,
-                    });
+                    sendError(res, 404, ZACHTOTHEGYM_ERRORS.ARTICLE_NOT_FOUND);
                     return;
                 }
                 res.status(200).json(article);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_ARTICLE,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_FETCH_ARTICLE);
                 return;
             }
         },
@@ -245,11 +232,11 @@ export const createZachtothegymController = (
         createNewArticle: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const { title, summary, content, categories } = req.body as {
@@ -268,9 +255,7 @@ export const createZachtothegymController = (
                 res.status(201).json(newArticle);
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_CREATE_ARTICLE,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_CREATE_ARTICLE);
                 return;
             }
         },
@@ -286,11 +271,11 @@ export const createZachtothegymController = (
         addDailyMetrics: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const metrics: DailyMetrics = req.body as DailyMetrics;
@@ -302,9 +287,7 @@ export const createZachtothegymController = (
                 return;
             } catch (_e) {
                 console.error("Error inserting daily metrics:", _e);
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_SAVE_METRICS,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_SAVE_METRICS);
                 return;
             }
         },
@@ -320,11 +303,11 @@ export const createZachtothegymController = (
         getDailyMetrics: async (req: Request, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const { start, end } = req.query as unknown as MetricsQuery;
@@ -334,9 +317,7 @@ export const createZachtothegymController = (
                 return;
             } catch (_e) {
                 console.error("Error fetching daily metrics:", _e);
-                res.status(500).json({
-                    error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_METRICS,
-                });
+                sendError(res, 500, ZACHTOTHEGYM_ERRORS.FAILED_FETCH_METRICS);
                 return;
             }
         },

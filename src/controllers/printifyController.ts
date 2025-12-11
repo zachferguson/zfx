@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { PRINTIFY_ERRORS } from "../config/printifyErrors";
-import { validationResult, type ValidationError } from "express-validator";
+import { validationResult } from "express-validator";
 import type { IPrintifyService } from "../services/printifyService";
 import type { IOrderService } from "../services/orderService";
 import type { IEmailService } from "../services/emailService";
 import { ShippingRatesRequestBody } from "../types/printifyShipping";
 import { PrintifyOrderRequest } from "../types/printifyOrder";
+import { sendError } from "../utils/sendError";
 import crypto from "node:crypto";
 import type { ParamsDictionary } from "express-serve-static-core";
 
@@ -61,19 +62,17 @@ export const createPrintifyController = (
         getProducts: async (req: Request<{ id: string }>, res: Response) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                    sendError(
+                        res,
+                        400,
+                        errors.array().map((e) => String(e.msg))
+                    );
                 return;
             }
             try {
                 const { id: storeId } = req.params;
                 if (!storeId) {
-                    res.status(400).json({
-                        error: "Missing store id in request parameters.",
-                    });
+                    sendError(res, 400, PRINTIFY_ERRORS.MISSING_STORE_ID);
                     return;
                 }
                 const products = await printifyService.getProducts(storeId);
@@ -81,9 +80,7 @@ export const createPrintifyController = (
                 return;
             } catch (err) {
                 console.error("Error in printifyController.getProducts", err);
-                res.status(500).json({
-                    error: PRINTIFY_ERRORS.FAILED_FETCH_PRODUCTS,
-                });
+                sendError(res, 500, PRINTIFY_ERRORS.FAILED_FETCH_PRODUCTS);
                 return;
             }
         },
@@ -103,11 +100,11 @@ export const createPrintifyController = (
         ) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                    sendError(
+                        res,
+                        400,
+                        errors.array().map((e) => String(e.msg))
+                    );
                 return;
             }
             try {
@@ -127,9 +124,7 @@ export const createPrintifyController = (
                 return;
             } catch (err) {
                 console.error("Error fetching shipping rates:", err);
-                res.status(500).json({
-                    error: PRINTIFY_ERRORS.FAILED_SHIPPING_OPTIONS,
-                });
+                sendError(res, 500, PRINTIFY_ERRORS.FAILED_SHIPPING_OPTIONS);
                 return;
             }
         },
@@ -149,11 +144,11 @@ export const createPrintifyController = (
         ) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                    sendError(
+                        res,
+                        400,
+                        errors.array().map((e) => String(e.msg))
+                    );
                 return;
             }
 
@@ -222,9 +217,7 @@ export const createPrintifyController = (
                 return;
             } catch (err: unknown) {
                 console.error("Error processing order:", err);
-                res.status(500).json({
-                    error: PRINTIFY_ERRORS.FAILED_PROCESS_ORDER,
-                });
+                sendError(res, 500, PRINTIFY_ERRORS.FAILED_PROCESS_ORDER);
                 return;
             }
         },
@@ -244,11 +237,11 @@ export const createPrintifyController = (
         ) => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                    sendError(
+                        res,
+                        400,
+                        errors.array().map((e) => String(e.msg))
+                    );
                 return;
             }
 
@@ -260,15 +253,11 @@ export const createPrintifyController = (
                 );
 
                 if (!order) {
-                    res.status(404).json({
-                        error: PRINTIFY_ERRORS.ORDER_NOT_FOUND,
-                    });
+                    sendError(res, 404, PRINTIFY_ERRORS.ORDER_NOT_FOUND);
                     return;
                 }
                 if (!order.printify_order_id) {
-                    res.status(422).json({
-                        error: PRINTIFY_ERRORS.ORDER_NOT_FOUND,
-                    });
+                    sendError(res, 422, PRINTIFY_ERRORS.ORDER_NOT_FOUND);
                     return;
                 }
 
@@ -353,9 +342,7 @@ export const createPrintifyController = (
                 return;
             } catch (err) {
                 console.error("Error fetching order status:", err);
-                res.status(500).json({
-                    error: PRINTIFY_ERRORS.FAILED_ORDER_STATUS,
-                });
+                sendError(res, 500, PRINTIFY_ERRORS.FAILED_ORDER_STATUS);
                 return;
             }
         },

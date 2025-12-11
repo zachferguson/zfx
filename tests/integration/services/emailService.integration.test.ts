@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { NodeMailerEmailService } from "../../../src/services/emailService";
 import type { StoreEmailConfigMap } from "../../../src/types/email";

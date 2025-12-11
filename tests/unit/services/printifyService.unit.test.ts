@@ -42,7 +42,10 @@ describe("PrintifyService (unit)", () => {
     describe("constructor", () => {
         it("creates axios instance with Authorization header", () => {
             expect(axCreate).toHaveBeenCalledTimes(1);
-            const [cfg] = axCreate.mock.calls[0];
+            expect(axCreate).toHaveBeenCalled();
+            const firstCall = axCreate.mock.calls[0] as unknown[] | undefined;
+            const cfg = firstCall?.[0] as any;
+            expect(cfg).toBeDefined();
             expect(cfg).toMatchObject({
                 headers: { Authorization: `Bearer ${API_KEY}` },
             });
@@ -233,7 +236,10 @@ describe("PrintifyService (unit)", () => {
             } as any;
 
             await svc.submitOrder("store-2", "ext-9", orderReq);
-            const [_url, payload] = axPost.mock.calls[0];
+            expect(axPost).toHaveBeenCalled();
+            const firstPost = axPost.mock.calls[0] as unknown[] | undefined;
+            const payload = firstPost?.[1] as any;
+            expect(payload).toBeDefined();
             expect(payload.address_to.phone).toBe("000-000-0000");
             expect(payload.address_to.region).toBe("");
             expect(payload.address_to.address2).toBe("");

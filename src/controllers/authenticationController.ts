@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import type { IAuthenticationService } from "../services/authenticationService";
 import { AUTHENTICATION_ERRORS } from "../config/authenticationErrors";
-import { validationResult, type ValidationError } from "express-validator";
+import { validationResult } from "express-validator";
+import { sendError } from "../utils/sendError";
 import type { ParamsDictionary } from "express-serve-static-core";
 import type { RegisterRequestBody, LoginRequestBody } from "../types/auth";
 
@@ -54,12 +55,11 @@ export const createAuthenticationController = (
         ): Promise<void> => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                // Coerce potential any messages to strings for safety
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const isDuplicateError = (e: unknown): boolean => {
@@ -90,14 +90,10 @@ export const createAuthenticationController = (
                     (err instanceof Error &&
                         err.message.includes("already exists"))
                 ) {
-                    res.status(400).json({
-                        error: AUTHENTICATION_ERRORS.DUPLICATE_USER,
-                    });
+                    sendError(res, 400, AUTHENTICATION_ERRORS.DUPLICATE_USER);
                     return;
                 } else {
-                    res.status(500).json({
-                        error: AUTHENTICATION_ERRORS.REGISTER_FAILED,
-                    });
+                    sendError(res, 500, AUTHENTICATION_ERRORS.REGISTER_FAILED);
                     return;
                 }
             }
@@ -118,11 +114,11 @@ export const createAuthenticationController = (
         ): Promise<void> => {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                res.status(400).json({
-                    errors: errors
-                        .array()
-                        .map((e: ValidationError) => String(e.msg)),
-                });
+                sendError(
+                    res,
+                    400,
+                    errors.array().map((e) => String(e.msg))
+                );
                 return;
             }
             const { username, password, site } = req.body;
@@ -133,18 +129,18 @@ export const createAuthenticationController = (
                     site
                 );
                 if (!result) {
-                    res.status(401).json({
-                        error: AUTHENTICATION_ERRORS.INVALID_CREDENTIALS,
-                    });
+                    sendError(
+                        res,
+                        401,
+                        AUTHENTICATION_ERRORS.INVALID_CREDENTIALS
+                    );
                     return;
                 }
                 const { token, user } = result;
                 res.status(200).json({ token, user });
                 return;
             } catch (_e) {
-                res.status(500).json({
-                    error: AUTHENTICATION_ERRORS.LOGIN_FAILED,
-                });
+                sendError(res, 500, AUTHENTICATION_ERRORS.LOGIN_FAILED);
                 return;
             }
         },
