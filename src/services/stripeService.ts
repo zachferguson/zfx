@@ -1,55 +1,114 @@
 import Stripe from "stripe";
 
 /**
- * Mapping of store IDs to their Stripe secret keys, loaded from environment variables.
- * Add new stores as needed.
+ * Resolves the Stripe secret for a given store.
  */
-const stripeKeys: Record<string, string> = {
-    developerhorizon: process.env.STRIPE_SECRET_DEVELOPERHORIZON!,
-};
+export interface IStripeSecretResolver {
+    /**
+     * Resolves the Stripe secret for a given store.
+     *
+     * @param {string} storeId - Store identifier.
+     * @returns {string | undefined} Secret API key or `undefined` if not configured.
+     */
+    (storeId: string): string | undefined;
+}
 
 /**
- * Returns a Stripe client instance for the given store.
- * Throws if no secret key is found for the store.
- *
- * @param {string} storeId - The store identifier (e.g., 'developerhorizon').
- * @returns {Stripe} - Configured Stripe client instance.
+ * Stripe constructor interface to allow overrides in tests.
  */
-export const getStripeClient = (storeId: string): Stripe => {
-    const secretKey = stripeKeys[storeId];
-    if (!secretKey) {
-        throw new Error(`No Stripe API key found for store: ${storeId}`);
-    }
-    return new Stripe(secretKey, {
-        apiVersion: "2023-10-16" as any,
-    });
-};
+export interface IStripeCtor {
+    new (
+        secretKey: string,
+        config: ConstructorParameters<typeof Stripe>[1]
+    ): Stripe;
+}
 
 /**
- * Creates a Stripe PaymentIntent for the given store, amount, and currency.
- * Returns the client secret for the created PaymentIntent.
- *
- * @param {string} storeId - The store identifier (must have a configured secret key).
- * @param {number} amount - The amount to charge, in the smallest currency unit (e.g., cents).
- * @param {string} currency - The currency code (e.g., 'usd').
- * @returns {Promise<string | null>} - The client secret for the PaymentIntent, or null if not available.
- * @throws {Error} - If the PaymentIntent creation fails or the store is not configured.
+ * Contract for Stripe client creation and payment intents.
  */
-export const createPaymentIntent = async (
-    storeId: string,
-    amount: number,
-    currency: string
-): Promise<string | null> => {
-    try {
-        const stripe = getStripeClient(storeId);
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount,
-            currency,
-            payment_method_types: ["card"],
-        });
-        return paymentIntent.client_secret;
-    } catch (error) {
-        console.error(`Error creating PaymentIntent for ${storeId}`, error);
-        throw error;
+export interface IStripeService {
+    /**
+     * Creates a configured Stripe client for a store.
+     *
+     * @param {string} storeId - Store identifier.
+     * @returns {Stripe} Configured Stripe client.
+     */
+    getStripeClient(storeId: string): Stripe;
+    /**
+     * Creates a PaymentIntent and returns its client secret.
+     *
+     * @param {string} storeId - Store identifier.
+     * @param {number} amount - Amount in minor units (e.g., cents).
+     * @param {string} currency - ISO currency code (e.g., "USD").
+     * @returns {Promise<string | null>} Client secret or `null` if unavailable.
+     */
+    createPaymentIntent(
+        storeId: string,
+        amount: number,
+        currency: string
+    ): Promise<string | null>;
+}
+
+/**
+ * Stripe-backed implementation of `IStripeService`.
+ */
+export class StripeService implements IStripeService {
+    /**
+     * Stripe-backed payment service.
+     *
+     * @param {IStripeSecretResolver} getSecretForStore - Resolver for per-store Stripe secrets.
+     * @param {IStripeCtor} [StripeClass=Stripe] - Stripe constructor override (useful for tests).
+     */
+    constructor(
+        private readonly getSecretForStore: IStripeSecretResolver,
+        private readonly StripeClass: IStripeCtor = Stripe
+    ) {}
+
+    /**
+     * Creates a configured Stripe client for a store.
+     *
+     * @param {string} storeId - Store identifier.
+     * @returns {Stripe} Configured Stripe client.
+     * @throws {Error} When no secret is found for the store.
+     */
+    getStripeClient(storeId: string): Stripe {
+        const secretKey = this.getSecretForStore(storeId);
+        if (!secretKey) {
+            throw new Error(`No Stripe API key found for store: ${storeId}`);
+        }
+        const stripeConfig = { apiVersion: "2023-10-16" } as const;
+        return new this.StripeClass(
+            secretKey,
+            stripeConfig as unknown as Stripe.StripeConfig
+        );
     }
-};
+
+    /**
+     * Creates a PaymentIntent and returns its client secret.
+     *
+     * @param {string} storeId - Store identifier.
+     * @param {number} amount - Amount in minor units (e.g., cents).
+     * @param {string} currency - ISO currency code (e.g., "USD").
+     * @returns {Promise<string | null>} Client secret or `null` if unavailable.
+     * @remarks Uses payment method type `card`.
+     */
+    async createPaymentIntent(
+        storeId: string,
+        amount: number,
+        currency: string
+    ): Promise<string | null> {
+        try {
+            const stripe = this.getStripeClient(storeId);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount,
+                currency,
+                payment_method_types: ["card"],
+            });
+            return paymentIntent.client_secret;
+        } catch (error) {
+            // keep original log shape for tests
+            console.error(`Error creating PaymentIntent for ${storeId}`, error);
+            throw error as Error;
+        }
+    }
+}

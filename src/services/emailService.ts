@@ -1,141 +1,178 @@
-// services/emailService.ts
-
-import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-import { STORE_EMAILS } from "../config/storeEmails";
+import nodemailer, { Transporter, TransportOptions } from "nodemailer";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 import { escapeHtml } from "../utils/html";
+import {
+    OrderConfirmationPayload,
+    EmailSendResult,
+    StoreEmailConfigMap,
+    StoreEmailConfig,
+} from "../types/email";
 
-dotenv.config();
+/**
+ * Interface for sending transactional emails.
+ */
+export interface IEmailService {
+    /**
+     * Sends an order confirmation email.
+     *
+     * @param {Object} input - The send parameters.
+     * @param {string} input.storeId - The store identifier (used to pick config).
+     * @param {string} input.to - Recipient email address.
+     * @param {string} input.orderNumber - The external order identifier.
+     * @param {OrderConfirmationPayload} input.payload - Order summary details for the email body.
+     * @returns {Promise<EmailSendResult>} Success flag and optional provider message ID or error message.
+     */
+    sendOrderConfirmation(input: {
+        storeId: string;
+        to: string;
+        orderNumber: string;
+        payload: OrderConfirmationPayload;
+    }): Promise<EmailSendResult>;
+}
 
-type OrderEmailItem = {
-    title: string;
-    variant_label: string;
-    quantity: number;
-    // price per item charged to the customer
-    price: number;
-};
+/**
+ * Factory for creating a Nodemailer transporter.
+ *
+ * Use `{ jsonTransport: true }` in tests to avoid network calls.
+ */
+// Return a transporter whose sendMail resolves to unknown to avoid implicit any
+// and force safe narrowing when reading provider-specific fields like messageId.
+export type TransportFactory = (opts: TransportOptions) => Transporter<unknown>;
 
-type OrderEmailAddress = {
-    first_name: string;
-    last_name: string;
-    phone?: string;
-    country: string;
-    region: string;
-    city: string;
-    address1: string;
-    address2?: string;
-    zip: string;
-};
-
-export type OrderEmailSummary = {
-    address: OrderEmailAddress;
-    items: OrderEmailItem[];
-    shippingMethod: number; // you can map this to a human label if you want
-    totalPrice: number;
-    currency: string; // e.g. "USD"
+/**
+ * Optional dependency overrides for testing and environment control.
+ */
+export type EmailDeps = {
+    /**
+     * Custom transport factory (defaults to `nodemailer.createTransport`).
+     */
+    createTransport?: TransportFactory;
+    /**
+     * Transport options override. Provide `jsonTransport: true` for tests,
+     * or a full SMTP options object for production/staging.
+     */
+    transportOptions?: TransportOptions;
+    /**
+     * Logger used for errors and diagnostics (defaults to `console`).
+     */
+    logger?: Pick<Console, "error" | "log">;
 };
 
 /**
- * Formats a number as currency using the specified currency code.
- * @param {number} amount - The amount in cents.
- * @param {string} currency - The currency code (e.g., 'USD').
- * @returns {string} The formatted currency string.
+ * Safely extract a messageId string from a provider-specific sendMail response.
+ * @param info
+ * @returns {string | undefined} The messageId if present and valid, otherwise undefined.
  */
-const formatMoney = (amount: number, currency: string) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-        amount / 100 // assuming cents
+const getMessageId = (info: unknown): string | undefined => {
+    if (info && typeof info === "object" && "messageId" in info) {
+        const maybeId = (info as { messageId?: unknown }).messageId;
+        return typeof maybeId === "string" ? maybeId : undefined;
+    }
+    return undefined;
+};
+
+/**
+ * Formats a number of cents as a localized currency string.
+ *
+ * @param {number} amountCents - The amount in cents.
+ * @param {string} currency - ISO currency code (e.g., "USD").
+ * @param {string} [locale="en-US"] - BCP 47 locale for formatting (e.g., "en-US").
+ * @returns {string} The formatted currency string (e.g., "$10.00").
+ */
+export const formatMoney = (
+    amountCents: number,
+    currency: string,
+    locale = "en-US"
+) =>
+    new Intl.NumberFormat(locale, { style: "currency", currency }).format(
+        amountCents / 100
     );
 
-// Optional: translate your numeric shipping method to a label
-
 /**
- * Maps a shipping method ID to a human-readable label.
- * @param {number} id - The shipping method ID.
- * @returns {string} The label for the shipping method.
+ * Maps a shipping method to a human-readable label.
+ *
+ * If a string is provided, it is returned as-is. If a number is provided,
+ * a default mapping is used with a reasonable fallback.
+ *
+ * @param {number | string} idOrLabel - Numeric method ID or pre-labeled string.
+ * @returns {string} Human-friendly label for the shipping method.
  */
-const shippingMethodLabel = (id: number) => {
-    // Stub: customize to your Printify mapping if you have one
-    const map: Record<number, string> = {
-        1: "Standard",
-        2: "Express",
-    };
-    return map[id] || `Method #${id}`;
+export const shippingMethodLabel = (idOrLabel: number | string) => {
+    if (typeof idOrLabel === "string") return idOrLabel;
+    const map: Record<number, string> = { 1: "Standard", 2: "Express" };
+    return map[idOrLabel] ?? `Method #${idOrLabel}`;
 };
 
 /**
- * Sends an order confirmation email to the customer for a given store and order.
- * @param {string} storeId - The store identifier.
- * @param {string} toEmail - The recipient's email address.
- * @param {string} orderId - The order identifier.
- * @param {OrderEmailSummary} summary - The summary of the order.
- * @returns {Promise<{ success: boolean; error?: string; messageId?: string }>} The result of the email send attempt.
+ * Builds the email envelope (from/to/subject) and both text + HTML bodies
+ * for a given order confirmation. This function is **pure** (no I/O).
+ *
+ * @param {Object} params - Parameters for composing the email.
+ * @param {StoreEmailConfig} params.storeConfig - Store-specific email configuration.
+ * @param {string} params.toEmail - Recipient email address.
+ * @param {string} params.orderId - External order identifier to display and track.
+ * @param {OrderConfirmationPayload} params.payload - Order summary used to render the email.
+ * @returns {{ ok: true, mail: { from: string, to: string, subject: string, text: string, html: string } } | { ok: false, error: string }}
+ *          On success, returns a complete message object ready for `transporter.sendMail`.
+ *          On failure, returns an error explaining the missing or invalid configuration.
  */
-export const sendOrderConfirmation = async (
-    storeId: string,
-    toEmail: string,
-    orderId: string,
-    summary: OrderEmailSummary
-): Promise<{ success: boolean; error?: string; messageId?: string }> => {
-    const emailConfig = STORE_EMAILS[storeId];
+export const composeOrderConfirmationEmail = (params: {
+    storeConfig: StoreEmailConfig;
+    toEmail: string;
+    orderId: string;
+    payload: OrderConfirmationPayload;
+}): EmailComposeSuccess | EmailComposeFailure => {
+    const { storeConfig, toEmail, orderId, payload } = params;
 
-    if (!emailConfig || !emailConfig.user || !emailConfig.pass) {
-        console.error(`No email configuration found for store: ${storeId}`);
-        return { success: false, error: "Email configuration missing." };
+    if (!storeConfig.user) {
+        return { ok: false, error: `Email config missing "user"` };
     }
 
-    const transporter = nodemailer.createTransport({
-        host: "mail." + emailConfig.user.split("@")[1],
-        port: 465,
-        secure: true,
-        auth: {
-            user: emailConfig.user,
-            pass: emailConfig.pass,
-        },
-    });
-
     // Build safe tracking URL (?orderId=...&email=...)
-    const url = new URL("/order-status", emailConfig.frontendUrl);
-    url.search = new URLSearchParams({
-        orderId: orderId,
-        email: toEmail,
-    }).toString();
+    const url = new URL("/order-status", storeConfig.frontendUrl);
+    url.search = new URLSearchParams({ orderId, email: toEmail }).toString();
 
     // Build address block
-    const a = summary.address;
+    const address = payload.address;
     const addressHtml = `
-    ${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}<br/>
-    ${escapeHtml(a.address1)}${
-        a.address2 ? `<br/>${escapeHtml(a.address2)}` : ""
+    ${escapeHtml(address.first_name)} ${escapeHtml(address.last_name)}<br/>
+    ${escapeHtml(address.address1)}${
+        address.address2 ? `<br/>${escapeHtml(address.address2)}` : ""
     }<br/>
-    ${escapeHtml(a.city)}, ${escapeHtml(a.region)} ${escapeHtml(a.zip)}<br/>
-    ${escapeHtml(a.country)}${a.phone ? `<br/>${escapeHtml(a.phone)}` : ""}
+    ${escapeHtml(address.city)}, ${escapeHtml(address.region)} ${escapeHtml(
+        address.zip
+    )}<br/>
+    ${escapeHtml(address.country)}${
+        address.phone ? `<br/>${escapeHtml(address.phone)}` : ""
+    }
   `;
 
     // Items table
-    const itemsRowsHtml = summary.items
-        .map((it) => {
-            const lineTotal = it.price * it.quantity;
+    const itemsRowsHtml = payload.items
+        .map((item) => {
+            const lineTotal = item.price * item.quantity;
             return `
         <tr>
           <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(
-              it.title
+              item.title
           )}</td>
           <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(
-              it.variant_label
+              item.variant_label
           )}</td>
           <td style="padding:8px;border:1px solid #ddd;text-align:center;">${
-              it.quantity
+              item.quantity
           }</td>
           <td style="padding:8px;border:1px solid #ddd;text-align:right;">${formatMoney(
-              it.price,
-              summary.currency
+              item.price,
+              payload.currency,
+              storeConfig.locale
           )}</td>
           <td style="padding:8px;border:1px solid #ddd;text-align:right;">${formatMoney(
               lineTotal,
-              summary.currency
+              payload.currency,
+              storeConfig.locale
           )}</td>
-        </tr>
-      `;
+        </tr>`;
         })
         .join("");
 
@@ -151,58 +188,65 @@ export const sendOrderConfirmation = async (
         </tr>
       </thead>
       <tbody>${itemsRowsHtml}</tbody>
-    </table>
-  `;
+    </table>`;
 
-    const shippingLabel = shippingMethodLabel(summary.shippingMethod);
-    const totalFormatted = formatMoney(summary.totalPrice, summary.currency);
+    const shippingLabel = shippingMethodLabel(payload.shippingMethod);
+    const totalFormatted = formatMoney(
+        payload.totalPrice,
+        payload.currency,
+        storeConfig.locale
+    );
 
-    const textItems = summary.items
+    const textItems = payload.items
         .map(
-            (it) =>
-                `- ${it.title} (${it.variant_label}) x${
-                    it.quantity
-                } @ ${formatMoney(it.price, summary.currency)} = ${formatMoney(
-                    it.price * it.quantity,
-                    summary.currency
+            (item) =>
+                `- ${item.title} (${item.variant_label}) x${
+                    item.quantity
+                } @ ${formatMoney(
+                    item.price,
+                    payload.currency,
+                    storeConfig.locale
+                )} = ${formatMoney(
+                    item.price * item.quantity,
+                    payload.currency,
+                    storeConfig.locale
                 )}`
         )
         .join("\n");
 
     const textAddress = [
-        `${a.first_name} ${a.last_name}`,
-        a.address1,
-        a.address2,
-        `${a.city}, ${a.region} ${a.zip}`,
-        a.country,
-        a.phone ? a.phone : undefined,
+        `${address.first_name} ${address.last_name}`,
+        address.address1,
+        address.address2,
+        `${address.city}, ${address.region} ${address.zip}`,
+        address.country,
+        address.phone ? address.phone : undefined,
     ]
         .filter(Boolean)
         .join("\n");
 
-    const mailOptions = {
-        from: `"${emailConfig.storeName} Orders" <${emailConfig.user}>`,
+    const mail = {
+        from: `"${storeConfig.storeName} Orders" <${storeConfig.user}>`,
         to: toEmail,
-        subject: `${emailConfig.storeName} Order Confirmation - ${orderId}`,
+        subject: `${storeConfig.storeName} Order Confirmation - ${orderId}`,
         text: `Thank you for your order!
 
-        Your order ID is ${orderId}.
+Your order ID is ${orderId}.
 
-        Track your order: ${url.toString()}
+Track your order: ${url.toString()}
 
-        Shipping To:
-        ${textAddress}
+Shipping To:
+${textAddress}
 
-        Items:
-        ${textItems}
+Items:
+${textItems}
 
-        Shipping Method: ${shippingLabel}
-        Order Total: ${totalFormatted}
-        `,
+Shipping Method: ${shippingLabel}
+Order Total: ${totalFormatted}
+`,
         html: `
       <h2>Thank you for your order!</h2>
       <p>Your order ID is <strong>${escapeHtml(orderId)}</strong>.</p>
-
       <p><a href="${url.toString()}">Click here</a> to view and track your order.</p>
 
       <h3 style="margin-bottom:4px;">Shipping To</h3>
@@ -219,18 +263,132 @@ export const sendOrderConfirmation = async (
       <p style="font-size:12px;color:#666;margin-top:16px">
         If the button doesn't work, copy &amp; paste this URL into your browser:<br/>
         <span style="word-break:break-all">${escapeHtml(url.toString())}</span>
-      </p>
-    `,
+      </p>`,
     };
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        return { success: true, messageId: info.messageId };
-    } catch (error: unknown) {
-        console.error("Error sending email:", error);
-        let errorMessage = "An unknown error occurred.";
-        if (error instanceof Error) errorMessage = error.message;
-        else if (typeof error === "string") errorMessage = error;
-        return { success: false, error: errorMessage };
-    }
+    return { ok: true, mail };
 };
+
+/**
+ * Successful result of composing an order confirmation email.
+ */
+export type EmailComposeSuccess = {
+    /** Indicates composition succeeded. */
+    ok: true;
+    /** Fully composed message compatible with Nodemailer `sendMail`. */
+    mail: {
+        /** Sender address (formatted). */
+        from: string;
+        /** Recipient address. */
+        to: string;
+        /** Email subject. */
+        subject: string;
+        /** Plain-text body. */
+        text: string;
+        /** HTML body. */
+        html: string;
+    };
+};
+
+/**
+ * Failure result of composing an order confirmation email.
+ */
+export type EmailComposeFailure = {
+    /** Indicates composition failed. */
+    ok: false;
+    /** Error explaining why composition failed. */
+    error: string;
+};
+
+/**
+ * Nodemailer-backed email service implementation.
+ *
+ * This class composes order confirmation emails using store configuration
+ * and sends them via a configured Nodemailer transport.
+ */
+export class NodeMailerEmailService implements IEmailService {
+    private readonly createTransport: TransportFactory;
+    private readonly logger: Pick<Console, "error" | "log">;
+    private readonly transportOptions?: TransportOptions | undefined;
+
+    /**
+     * Creates a new NodeMailerEmailService.
+     *
+     * @param {StoreEmailConfigMap} stores - Map of store IDs to email configuration.
+     * @param {EmailDeps} [deps] - Optional dependencies for testing and environment overrides.
+     */
+    constructor(
+        private readonly stores: StoreEmailConfigMap,
+        deps: EmailDeps = {}
+    ) {
+        this.createTransport =
+            deps.createTransport ?? nodemailer.createTransport;
+        this.transportOptions = deps.transportOptions;
+        this.logger = deps.logger ?? console;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    async sendOrderConfirmation(input: {
+        storeId: string;
+        to: string;
+        orderNumber: string;
+        payload: OrderConfirmationPayload;
+    }): Promise<EmailSendResult> {
+        const { storeId, to, orderNumber, payload } = input;
+
+        const storeConfig = this.stores[storeId];
+        if (!storeConfig) {
+            return {
+                success: false,
+                error: `No email config for store: ${storeId}`,
+            };
+        }
+        if (!storeConfig.user || !storeConfig.pass) {
+            return {
+                success: false,
+                error: `Email credentials missing for store: ${storeId}`,
+            };
+        }
+
+        const composed = composeOrderConfirmationEmail({
+            storeConfig,
+            toEmail: to,
+            orderId: orderNumber,
+            payload,
+        });
+
+        if (!composed.ok) {
+            this.logger.error(composed.error);
+            return { success: false, error: composed.error };
+        }
+
+        // Choose transport options (respect injected overrides for tests)
+        const defaultTransportOptions: SMTPTransport.Options = {
+            host: "mail." + storeConfig.user.split("@")[1],
+            port: 465,
+            secure: true,
+            auth: { user: storeConfig.user, pass: storeConfig.pass },
+        };
+
+        const resolvedTransportOptions: TransportOptions =
+            this.transportOptions ?? defaultTransportOptions;
+
+        try {
+            const transporter = this.createTransport(resolvedTransportOptions);
+            const info: unknown = await transporter.sendMail(composed.mail);
+            const messageId = getMessageId(info);
+            return messageId ? { success: true, messageId } : { success: true };
+        } catch (err: unknown) {
+            this.logger.error("Error sending email:", err);
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : typeof err === "string"
+                      ? err
+                      : "Unknown error";
+            return { success: false, error: message };
+        }
+    }
+}

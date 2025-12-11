@@ -1,16 +1,15 @@
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 
-import zachtothegymRoutes from "./routes/zachtothegymRoutes";
-import printifyRoutes from "./routes/printifyRoutes";
-import authenticationRoutes from "./routes/authenticationRoutes";
-import paymentRoutes from "./routes/paymentRoutes";
+import zachtothegymRoutes from "./routes/zachtothegymRoutes.wired";
+import printifyRoutes from "./routes/printifyRoutes.wired";
+import authenticationRoutes from "./routes/authenticationRoutes.wired";
+import paymentRoutes from "./routes/paymentRoutes.wired";
 
-dotenv.config();
-
+/**
+ * Express application configured with CORS, JSON parsing, and route mounting.
+ */
 const app = express();
-const port = process.env.PORT || 5000;
 
 const allowedOrigins = [
     "https://www.developerhorizon.com",
@@ -45,12 +44,7 @@ app.get("/health", (_req, res) => {
     res.status(200).json({ ok: true });
 });
 
-// only listen when not running tests
-if (process.env.NODE_ENV !== "test") {
-    app.listen(port, () => {
-        // eslint-disable-next-line no-console
-        console.log(`Server is running on port ${port}`);
-    });
-}
-
+/**
+ * Default export of the configured Express app.
+ */
 export default app;

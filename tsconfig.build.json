@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "noEmit": false, // override base
+        "outDir": "./dist",
+        "rootDir": "./src", // only emit files from src
+        "sourceMap": false // set true if you want sourcemaps
+    },
+    "include": ["src"],
+    "exclude": ["tests", "node_modules"]
+}

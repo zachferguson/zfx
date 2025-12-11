@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml } from "./html";
+import { escapeHtml } from "../../../src/utils/html";
 
-describe("escapeHtml", () => {
+describe("escapeHtml (unit)", () => {
     it("escapes all special HTML characters", () => {
         expect(escapeHtml("<div>& ' \" </div>")).toBe(
             "&lt;div&gt;&amp; &#39; &quot; &lt;/div&gt;"

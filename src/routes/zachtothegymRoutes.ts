@@ -1,14 +1,5 @@
-import { Router } from "express";
-import {
-    getBlogs,
-    getSingleBlogById,
-    createNewBlog,
-    getArticles,
-    getSingleArticleById,
-    createNewArticle,
-    addDailyMetrics,
-    getDailyMetrics,
-} from "../controllers/zachtothegymController";
+import { Router, type Response, type NextFunction } from "express";
+import { type ZTGControllerHandlers } from "../controllers/zachtothegymController";
 import {
     validateGetSingleBlogById,
     validateCreateNewBlog,
@@ -17,66 +8,109 @@ import {
     validateAddDailyMetrics,
     validateGetDailyMetrics,
 } from "../validators/zachtothegymValidators";
-import { verifyToken } from "../middleware/authenticationMiddleware";
+// no default-wired middleware here; provided by wired file/tests via factory
 
-const router = Router();
-
-/**
- * Gets all blogs.
- * @route GET /blogs
- */
-router.get("/blogs", getBlogs);
+import type { AuthRequest } from "../middleware/authenticationMiddleware";
 
 /**
- * Gets a single blog by ID.
- * @route GET /blogs/:id
+ * Authentication middleware handlers used by protected ZTG routes.
  */
-router.get("/blogs/:id", validateGetSingleBlogById, getSingleBlogById);
+export type AuthMiddlewareHandlers = {
+    /** Verifies a Bearer token and attaches `user` to the request. */
+    verifyToken: (req: AuthRequest, res: Response, next: NextFunction) => void;
+};
 
 /**
- * Creates a new blog.
- * @route POST /blogs
+ * Creates the Zachtothegym router.
+ *
+ * @param {ZTGControllerHandlers} controller - Controller with blog, article, and metrics handlers.
+ * @param {AuthMiddlewareHandlers} mw - Authentication middleware providing `verifyToken`.
+ * @returns {import('express').Router} Express router for Zachtothegym endpoints.
+ * @remarks Attaches validation middleware for each route; POST routes require Bearer token.
  */
-router.post("/blogs", verifyToken, validateCreateNewBlog, createNewBlog);
+export const createZachtothegymRouter = (
+    controller: ZTGControllerHandlers,
+    mw: AuthMiddlewareHandlers
+) => {
+    const router = Router();
 
-/**
- * Gets all articles.
- * @route GET /articles
- */
-router.get("/articles", getArticles);
+    /**
+     * Gets all blogs.
+     * @see GET /blogs
+     */
+    router.get("/blogs", controller.getBlogs);
 
-/**
- * Gets a single article by ID.
- * @route GET /articles/:id
- */
-router.get("/articles/:id", validateGetSingleArticleById, getSingleArticleById);
+    /**
+     * Gets a single blog by ID.
+     * @see GET /blogs/:id
+     */
+    router.get(
+        "/blogs/:id",
+        validateGetSingleBlogById,
+        controller.getSingleBlogById
+    );
 
-/**
- * Creates a new article.
- * @route POST /articles
- */
-router.post(
-    "/articles",
-    verifyToken,
-    validateCreateNewArticle,
-    createNewArticle
-);
+    /**
+     * Creates a new blog.
+     * @see POST /blogs
+     */
+    router.post(
+        "/blogs",
+        mw.verifyToken,
+        validateCreateNewBlog,
+        controller.createNewBlog
+    );
 
-/**
- * Adds daily metrics.
- * @route POST /daily-metrics
- */
-router.post(
-    "/daily-metrics",
-    verifyToken,
-    validateAddDailyMetrics,
-    addDailyMetrics
-);
+    /**
+     * Gets all articles.
+     * @see GET /articles
+     */
+    router.get("/articles", controller.getArticles);
 
-/**
- * Gets daily metrics in a date range.
- * @route GET /daily-metrics
- */
-router.get("/daily-metrics", validateGetDailyMetrics, getDailyMetrics);
+    /**
+     * Gets a single article by ID.
+     * @see GET /articles/:id
+     */
+    router.get(
+        "/articles/:id",
+        validateGetSingleArticleById,
+        controller.getSingleArticleById
+    );
 
-export default router;
+    /**
+     * Creates a new article.
+     * @see POST /articles
+     */
+    router.post(
+        "/articles",
+        mw.verifyToken,
+        validateCreateNewArticle,
+        controller.createNewArticle
+    );
+
+    /**
+     * Adds daily metrics.
+     * @see POST /daily-metrics
+     */
+    router.post(
+        "/daily-metrics",
+        mw.verifyToken,
+        validateAddDailyMetrics,
+        controller.addDailyMetrics
+    );
+
+    /**
+     * Gets daily metrics in a date range.
+     * @see GET /daily-metrics
+     */
+    router.get(
+        "/daily-metrics",
+        validateGetDailyMetrics,
+        controller.getDailyMetrics
+    );
+
+    return router;
+};
+
+// For convenience, allow default export = factory (matches Printify pattern)
+export default createZachtothegymRouter;

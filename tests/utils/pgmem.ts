@@ -269,6 +269,7 @@ export async function importWithMockedDb<T = unknown>(opts: {
     importTarget: string;
     seed?: boolean;
 }): Promise<{ handles: PgMemHandles; mod: T }> {
+    // @ts-expect-error Relax optional property types in test helper to satisfy tsc strictness
     const handles = await setupPgMemAll({
         seed: opts.seed,
         mockModuleId: opts.mockModuleId,

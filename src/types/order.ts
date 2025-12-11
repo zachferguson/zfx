@@ -1,3 +1,8 @@
+/**
+ * Subset of order data returned from DB for order lookups (used in API responses).
+ *
+ * Used by: orderService (return type), printifyService (order lookup), orderService.unit.test.ts
+ */
 export interface OrderLookup {
     /** The store identifier. */
     store_id: string;
@@ -12,7 +17,9 @@ export interface OrderLookup {
 }
 
 /**
- * Represents the data required to create or update an order.
+ * Represents the data required to create or update an order (input to orderService).
+ *
+ * Used by: orderService (input), printifyService (order submission), orderService.unit.test.ts
  */
 export interface OrderData {
     /** The order number. */

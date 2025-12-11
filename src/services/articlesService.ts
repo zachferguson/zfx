@@ -3,12 +3,25 @@ import type { Article } from "../types/articlesModel";
 import type { IDatabase, ITask } from "pg-promise";
 
 // Any pg-promise connection-like object: the global db or a tx/task context.
-type DbOrTx = IDatabase<unknown> | ITask<unknown>;
+/**
+ * Connection context type: either the global pg-promise `db` or a transaction/task context.
+ */
+export type DbOrTx = IDatabase<unknown> | ITask<unknown>;
+
+/**
+ * Utility to select the provided connection/transaction or fall back to the global `db`.
+ *
+ * @param {DbOrTx} [t] - Optional pg-promise database/transaction context.
+ * @returns {DbOrTx} Resolved connection context.
+ */
 const useDb = (t?: DbOrTx) => t ?? db;
 
 /**
- * Fetches all articles from the database, ordered by creation date descending.
- * @returns {Promise<Article[]>} Array of articles
+ * Gets all articles.
+ *
+ * @param {DbOrTx} [cx] - Optional pg-promise context.
+ * @returns {Promise<Article[]>} Array of articles ordered by `created_at` descending.
+ * @remarks Accepts optional pg-promise context for transactional use.
  */
 export const getAllArticles = async (cx?: DbOrTx): Promise<Article[]> => {
     const query =
@@ -17,9 +30,11 @@ export const getAllArticles = async (cx?: DbOrTx): Promise<Article[]> => {
 };
 
 /**
- * Fetches a single article by its ID.
- * @param {number} id - The article ID
- * @returns {Promise<Article | null>} The article if found, otherwise null
+ * Gets a single article by ID.
+ *
+ * @param {number} id - Article ID.
+ * @param {DbOrTx} [cx] - Optional pg-promise context.
+ * @returns {Promise<Article | null>} The article if found; otherwise `null`.
  */
 export const getArticleById = async (
     id: number,
@@ -30,12 +45,15 @@ export const getArticleById = async (
 };
 
 /**
- * Creates a new article in the database.
- * @param {string} title - The article title
- * @param {string} summary - The article summary
- * @param {string} content - The article content
- * @param {string[]} categories - The article categories
- * @returns {Promise<Article>} The created article
+ * Creates a new article.
+ *
+ * @param {string} title - Article title.
+ * @param {string} summary - Article summary.
+ * @param {string} content - Article content.
+ * @param {string[]} categories - Article categories.
+ * @param {DbOrTx} [cx] - Optional pg-promise context.
+ * @returns {Promise<Article>} The created article.
+ * @remarks Returns the inserted row via `RETURNING *`.
  */
 export const createArticle = async (
     title: string,
@@ -53,9 +71,11 @@ export const createArticle = async (
 
 /**
  * Deletes an article by ID.
- * Hard-deletes the row and returns the deleted article (or null if not found).
- * @param {number} id - The article ID
- * @returns {Promise<Article | null>} The deleted row, or null if no row matched
+ *
+ * @param {number} id - Article ID.
+ * @param {DbOrTx} [cx] - Optional pg-promise context.
+ * @returns {Promise<Article | null>} The deleted row if matched; otherwise `null`.
+ * @remarks Performs a hard delete and returns the removed row via `RETURNING *`.
  */
 export const deleteArticleById = async (
     id: number,

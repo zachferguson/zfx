@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
     describe,
     it,
@@ -11,6 +12,20 @@ import path from "node:path";
 import type { ITask } from "pg-promise";
 import type { Article } from "../../../src/types/articlesModel";
 
+/**
+ * @file Integration tests for articlesService.
+ *
+ * Two suites:
+ * 1) pg-mem (always runs): services are imported with the db module mocked to an in-memory pg instance.
+ * 2) real DB (conditional on DATABASE_URL): each test runs inside a transaction that is rolled back.
+ *
+ * Scenarios covered:
+ * - getAllArticles: ordering by created_at DESC
+ * - getArticleById: found / null
+ * - createArticle: returns created row; persisted (pg-mem) / rolled back (real DB)
+ * - deleteArticleById: returns deleted row, removal verified; null for missing
+ */
+
 type ArticlesSvc = typeof import("../../../src/services/articlesService");
 
 const REAL_DB = !!(
@@ -18,7 +33,7 @@ const REAL_DB = !!(
 );
 
 // --- PG-MEM SUITE (always) -----------------------------------------------------
-describe("articlesService with pg-mem (no real DB)", () => {
+describe("articlesService (integration, pg-mem / no real DB)", () => {
     let handles: any;
     let getAllArticles: ArticlesSvc["getAllArticles"];
     let getArticleById: ArticlesSvc["getArticleById"];
@@ -67,56 +82,67 @@ describe("articlesService with pg-mem (no real DB)", () => {
         handles?.stop?.();
     });
 
-    // Should return all articles ordered by most recent first
-    it("getAllArticles returns rows ordered by created_at DESC", async () => {
-        const rows = await getAllArticles();
-        expect(rows.length).toBe(2);
-        expect(rows[0].title).toBe("New");
-        expect(rows[1].title).toBe("Old");
+    describe("getAllArticles", () => {
+        // Should return all articles ordered by most recent first
+        it("getAllArticles returns rows ordered by created_at DESC", async () => {
+            const rows = await getAllArticles();
+            expect(rows.length).toBe(2);
+            expect(rows[0].title).toBe("New");
+            expect(rows[1].title).toBe("Old");
+        });
     });
 
-    // Should fetch an article by ID, or return null if not found
-    it("getArticleById returns the row or null", async () => {
-        const all = await getAllArticles();
-        const id = all[0].id;
-        const found = await getArticleById(id);
-        expect(found?.id).toBe(id);
+    describe("getArticleById", () => {
+        // Should fetch an article by ID, or return null if not found
+        it("getArticleById returns the row or null", async () => {
+            const all = await getAllArticles();
+            const id = all[0].id;
+            const found = await getArticleById(id);
+            expect(found?.id).toBe(id);
 
-        const missing = await getArticleById(9999);
-        expect(missing).toBeNull();
+            const missing = await getArticleById(9999);
+            expect(missing).toBeNull();
+        });
     });
 
-    // Should insert a new article and return the created row
-    it("createArticle inserts and returns the created row", async () => {
-        const created = await createArticle("T", "S", "C", ["cat1", "cat2"]);
-        expect(created.id).toBeGreaterThan(0);
-        expect(created.title).toBe("T");
-        expect(Array.isArray(created.categories)).toBe(true);
+    describe("createArticle", () => {
+        // Should insert a new article and return the created row
+        it("createArticle inserts and returns the created row", async () => {
+            const created = await createArticle("T", "S", "C", [
+                "cat1",
+                "cat2",
+            ]);
+            expect(created.id).toBeGreaterThan(0);
+            expect(created.title).toBe("T");
+            expect(Array.isArray(created.categories)).toBe(true);
 
-        const roundTrip = await getArticleById(created.id);
-        expect(roundTrip?.title).toBe("T");
+            const roundTrip = await getArticleById(created.id);
+            expect(roundTrip?.title).toBe("T");
+        });
     });
 
-    // Should delete an article by ID and return the deleted row
-    it("deleteArticleById removes the row and returns it", async () => {
-        const before = await getAllArticles();
-        expect(before.length).toBe(2);
-        const id = before[0].id;
+    describe("deleteArticleById", () => {
+        // Should delete an article by ID and return the deleted row
+        it("deleteArticleById removes the row and returns it", async () => {
+            const before = await getAllArticles();
+            expect(before.length).toBe(2);
+            const id = before[0].id;
 
-        const deleted = await deleteArticleById(id);
-        expect(deleted?.id).toBe(id);
+            const deleted = await deleteArticleById(id);
+            expect(deleted?.id).toBe(id);
 
-        const after = await getAllArticles();
-        expect(after.find((a: Article) => a.id === id)).toBeUndefined();
+            const after = await getAllArticles();
+            expect(after.find((a: Article) => a.id === id)).toBeUndefined();
 
-        const refetch = await getArticleById(id);
-        expect(refetch).toBeNull();
-    });
+            const refetch = await getArticleById(id);
+            expect(refetch).toBeNull();
+        });
 
-    // Should return null when trying to delete a non-existent article
-    it("deleteArticleById returns null for a missing row", async () => {
-        const deleted = await deleteArticleById(999999);
-        expect(deleted).toBeNull();
+        // Should return null when trying to delete a non-existent article
+        it("deleteArticleById returns null for a missing row", async () => {
+            const deleted = await deleteArticleById(999999);
+            expect(deleted).toBeNull();
+        });
     });
 });
 
@@ -137,68 +163,73 @@ async function withTxRollback(fn: (t: ITask<unknown>) => Promise<void>) {
         });
 }
 
-describe.runIf(REAL_DB)("articlesService (real DB with rollback)", () => {
-    let getAllArticles: ArticlesSvc["getAllArticles"];
-    let getArticleById: ArticlesSvc["getArticleById"];
-    let createArticle: ArticlesSvc["createArticle"];
-    let deleteArticleById: ArticlesSvc["deleteArticleById"];
+describe.runIf(REAL_DB)(
+    "articlesService (integration, real DB with rollback)",
+    () => {
+        let getAllArticles: ArticlesSvc["getAllArticles"];
+        let getArticleById: ArticlesSvc["getArticleById"];
+        let createArticle: ArticlesSvc["createArticle"];
+        let deleteArticleById: ArticlesSvc["deleteArticleById"];
 
-    beforeAll(async () => {
-        vi.resetModules(); // ensure pg-mem mock doesn't leak here
-        const svc = await import("../../../src/services/articlesService");
-        getAllArticles = svc.getAllArticles;
-        getArticleById = svc.getArticleById;
-        createArticle = svc.createArticle;
-        deleteArticleById = svc.deleteArticleById;
-    });
-
-    // Should create and fetch an article inside a transaction, then roll back
-    it("create + fetch happen inside a tx and roll back", async () => {
-        const uniqueTitle = `[test-${Date.now()}]`;
-
-        await withTxRollback(async (t) => {
-            const created = await createArticle(
-                uniqueTitle,
-                "S",
-                "C",
-                ["cat"],
-                t
-            );
-            expect(created.id).toBeGreaterThan(0);
-
-            const found = await getArticleById(created.id, t);
-            expect(found?.title).toBe(uniqueTitle);
-
-            const allInside = await getAllArticles(t);
-            expect(
-                allInside.find((a: Article) => a.id === created.id)
-            ).toBeTruthy();
-            // rollback will remove it after the callback
+        beforeAll(async () => {
+            vi.resetModules(); // ensure pg-mem mock doesn't leak here
+            const svc = await import("../../../src/services/articlesService");
+            getAllArticles = svc.getAllArticles;
+            getArticleById = svc.getArticleById;
+            createArticle = svc.createArticle;
+            deleteArticleById = svc.deleteArticleById;
         });
 
-        // After rollback, the article isn't in the real DB
-        const allOutside = await getAllArticles();
-        expect(
-            allOutside.find((a: Article) => a.title === uniqueTitle)
-        ).toBeUndefined();
-    });
+        describe("transactional behavior", () => {
+            // Should create and fetch an article inside a transaction, then roll back
+            it("create + fetch happen inside a tx and roll back", async () => {
+                const uniqueTitle = `[test-${Date.now()}]`;
 
-    // Should delete an article inside a transaction and roll back
-    it("delete inside tx rolls back too", async () => {
-        await withTxRollback(async (t) => {
-            const created = await createArticle(
-                "[del-test]",
-                "S",
-                "C",
-                ["x"],
-                t
-            );
-            const deleted = await deleteArticleById(created.id, t);
-            expect(deleted?.id).toBe(created.id);
+                await withTxRollback(async (t) => {
+                    const created = await createArticle(
+                        uniqueTitle,
+                        "S",
+                        "C",
+                        ["cat"],
+                        t
+                    );
+                    expect(created.id).toBeGreaterThan(0);
 
-            const refetch = await getArticleById(created.id, t);
-            expect(refetch).toBeNull();
+                    const found = await getArticleById(created.id, t);
+                    expect(found?.title).toBe(uniqueTitle);
+
+                    const allInside = await getAllArticles(t);
+                    expect(
+                        allInside.find((a: Article) => a.id === created.id)
+                    ).toBeTruthy();
+                    // rollback will remove it after the callback
+                });
+
+                // After rollback, the article isn't in the real DB
+                const allOutside = await getAllArticles();
+                expect(
+                    allOutside.find((a: Article) => a.title === uniqueTitle)
+                ).toBeUndefined();
+            });
+
+            // Should delete an article inside a transaction and roll back
+            it("delete inside tx rolls back too", async () => {
+                await withTxRollback(async (t) => {
+                    const created = await createArticle(
+                        "[del-test]",
+                        "S",
+                        "C",
+                        ["x"],
+                        t
+                    );
+                    const deleted = await deleteArticleById(created.id, t);
+                    expect(deleted?.id).toBe(created.id);
+
+                    const refetch = await getArticleById(created.id, t);
+                    expect(refetch).toBeNull();
+                });
+                // Nothing persisted because of rollback.
+            });
         });
-        // Nothing persisted because of rollback.
-    });
-});
+    }
+);

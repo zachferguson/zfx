@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 /**
- * Hoisted mocks so we can control the Stripe constructor & instance.
+ * @file Unit tests for stripeService.
+ *
+ * These tests verify the behavior of stripeService methods using a mocked Stripe
+ * constructor and instance to control client creation and PaymentIntent calls.
+ *
+ * Scenarios covered:
+ * - getStripeClient: returns configured client or throws when key missing
+ * - createPaymentIntent: creates intent, returns client_secret, bubbles errors
  */
+
+// Hoisted mocks so we can control the Stripe constructor & instance.
 const h = vi.hoisted(() => ({
     StripeCtor: vi.fn(), // mocked class/constructor
     stripeInstance: {
@@ -35,16 +44,20 @@ beforeEach(() => {
     h.stripeInstance.paymentIntents.create.mockReset();
 });
 
-describe("stripeService", () => {
+describe("stripeService (unit)", () => {
     describe("getStripeClient", () => {
-        // Should return a Stripe client using the mapped secret key
         it("returns a Stripe client using the mapped secret key", async () => {
             // Arrange env before import (stripeKeys is computed on import)
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_test_123";
-            const { getStripeClient } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             // Act
-            const client = getStripeClient("developerhorizon");
+            const client = svc.getStripeClient("developerhorizon");
 
             // Assert: constructor called with correct args & returned our instance
             expect(h.StripeCtor).toHaveBeenCalledTimes(1);
@@ -55,13 +68,13 @@ describe("stripeService", () => {
             expect(client).toBe(h.stripeInstance);
         });
 
-        // Should throw if no secret key exists for the store
         it("throws when no secret key exists for the store", async () => {
             // No env key set
             delete process.env.STRIPE_SECRET_DEVELOPERHORIZON;
-            const { getStripeClient } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService(() => undefined, h.StripeCtor as any);
 
-            expect(() => getStripeClient("developerhorizon")).toThrow(
+            expect(() => svc.getStripeClient("developerhorizon")).toThrow(
                 "No Stripe API key found for store: developerhorizon"
             );
             expect(h.StripeCtor).not.toHaveBeenCalled();
@@ -69,17 +82,21 @@ describe("stripeService", () => {
     });
 
     describe("createPaymentIntent", () => {
-        // Should create a payment intent and return the client_secret
         it("creates a payment intent and returns client_secret", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_live_abc";
-            const { createPaymentIntent } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             // Make Stripe return a client secret
             h.stripeInstance.paymentIntents.create.mockResolvedValue({
                 client_secret: "pi_secret_123",
             });
 
-            const secret = await createPaymentIntent(
+            const secret = await svc.createPaymentIntent(
                 "developerhorizon",
                 2500,
                 "usd"
@@ -103,17 +120,21 @@ describe("stripeService", () => {
             expect(secret).toBe("pi_secret_123");
         });
 
-        // Should propagate errors from Stripe when creating a payment intent
         it("bubbles errors from Stripe", async () => {
             process.env.STRIPE_SECRET_DEVELOPERHORIZON = "sk_x";
-            const { createPaymentIntent } = await loadStripeService();
+            const { StripeService } = await loadStripeService();
+            const svc = new StripeService((storeId) => {
+                if (storeId === "developerhorizon")
+                    return process.env.STRIPE_SECRET_DEVELOPERHORIZON;
+                return undefined;
+            }, h.StripeCtor as any);
 
             h.stripeInstance.paymentIntents.create.mockRejectedValue(
                 new Error("stripe-down")
             );
 
             await expect(
-                createPaymentIntent("developerhorizon", 999, "usd")
+                svc.createPaymentIntent("developerhorizon", 999, "usd")
             ).rejects.toThrow("stripe-down");
         });
     });

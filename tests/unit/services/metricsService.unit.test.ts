@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 import db from "../../../src/db/connection";
 import {
@@ -6,6 +7,18 @@ import {
     deleteMetricsByDate,
     deleteMetricsInRange,
 } from "../../../src/services/metricsService";
+
+/**
+ * @file Unit tests for metricsService.
+ *
+ * These tests verify the behavior of all metricsService functions, using a mocked database connection.
+ *
+ * Scenarios covered:
+ * - saveDailyMetrics: upserts daily metrics, propagates db errors
+ * - getMetricsInRange: queries date range, propagates db errors
+ * - deleteMetricsByDate: deletes by date, returns row/null, propagates db errors
+ * - deleteMetricsInRange: deletes by range, returns rowCount, propagates db errors
+ */
 
 vi.mock("../../../src/db/connection", () => {
     return {
@@ -18,7 +31,7 @@ vi.mock("../../../src/db/connection", () => {
     };
 });
 
-const asMock = <T extends Function>(fn: unknown) => fn as unknown as Mock;
+const asMock = <T extends Function>(fn: unknown) => fn as Mock;
 // Helper to normalize whitespace in SQL for easier assertions
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 
@@ -51,137 +64,145 @@ const sampleMetrics = {
     carbs_grams: 230,
 };
 
-describe("metricsService", () => {
+describe("metricsService (unit)", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    // Should upsert daily metrics with all 26 placeholders in correct order
-    it("saveDailyMetrics -> upsert with 26 placeholders in correct order", async () => {
-        asMock(db.none).mockResolvedValue(undefined);
-        await saveDailyMetrics(sampleMetrics);
-        expect(db.none).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock(db.none).mock.calls[0];
-        expect(sql).toContain("INSERT INTO zachtothegym.daily_metrics");
-        expect(norm(sql)).toContain("( date, weight, bmi, body_fat");
-        expect(sql).toContain("VALUES (");
-        for (let i = 1; i <= 26; i++) {
-            expect(sql).toContain(`$${i}`);
-        }
-        expect(sql).toContain("ON CONFLICT (date) DO UPDATE");
-        expect(sql).toContain("weight = EXCLUDED.weight");
-        expect(sql).toContain("carbs_grams = EXCLUDED.carbs_grams");
-        expect(params).toEqual([
-            sampleMetrics.date,
-            sampleMetrics.weight,
-            sampleMetrics.bmi,
-            sampleMetrics.body_fat,
-            sampleMetrics.fat_free_weight,
-            sampleMetrics.subcutaneous_fat,
-            sampleMetrics.visceral_fat,
-            sampleMetrics.body_water,
-            sampleMetrics.skeletal_muscle,
-            sampleMetrics.muscle_mass,
-            sampleMetrics.bone_mass,
-            sampleMetrics.protein,
-            sampleMetrics.bmr,
-            sampleMetrics.metabolic_age,
-            sampleMetrics.total_steps,
-            sampleMetrics.walking_steps,
-            sampleMetrics.running_steps,
-            sampleMetrics.exercise_minutes,
-            sampleMetrics.calories_burned_walking,
-            sampleMetrics.calories_burned_running,
-            sampleMetrics.calories_burned_exercise,
-            sampleMetrics.total_calories_burned,
-            sampleMetrics.calories_consumed,
-            sampleMetrics.protein_grams,
-            sampleMetrics.fats_grams,
-            sampleMetrics.carbs_grams,
-        ]);
-    });
-
-    // Should propagate errors thrown by db.none
-    it("saveDailyMetrics -> bubbles db errors", async () => {
-        asMock(db.none).mockRejectedValue(new Error("upsert-fail"));
-        await expect(saveDailyMetrics(sampleMetrics)).rejects.toThrow(
-            "upsert-fail"
-        );
-    });
-
-    // Should query a date range and return all matching rows
-    it("getMetricsInRange -> queries date-range and returns rows", async () => {
-        asMock(db.any).mockResolvedValue([
-            { date: "2025-08-31" },
-            { date: "2025-09-01" },
-        ]);
-
-        const rows = await getMetricsInRange("2025-08-01", "2025-09-01");
-
-        expect(db.any).toHaveBeenCalledTimes(1);
-        const [sql, params] = asMock(db.any).mock.calls[0];
-
-        expect(norm(sql)).toContain("SELECT * FROM zachtothegym.daily_metrics");
-        expect(norm(sql)).toContain(
-            "WHERE date >= $1::date AND date <= $2::date"
-        );
-        expect(norm(sql)).toContain("ORDER BY date ASC");
-        expect(params).toEqual(["2025-08-01", "2025-09-01"]);
-        expect(rows).toEqual([{ date: "2025-08-31" }, { date: "2025-09-01" }]);
-    });
-
-    // Should propagate errors thrown by db.any
-    it("getMetricsInRange -> bubbles db errors", async () => {
-        asMock(db.any).mockRejectedValue(new Error("range-fail"));
-        await expect(
-            getMetricsInRange("2025-01-01", "2025-01-31")
-        ).rejects.toThrow("range-fail");
-    });
-    // Should delete metrics by date and return the deleted row if found
-    it("deleteMetricsByDate -> deletes and returns the row if found", async () => {
-        asMock(db.oneOrNone).mockResolvedValue({
-            date: "2025-09-01",
-            weight: 180,
+    describe("saveDailyMetrics", () => {
+        it("upserts with 26 placeholders in correct order", async () => {
+            asMock(db.none).mockResolvedValue(undefined);
+            await saveDailyMetrics(sampleMetrics);
+            expect(db.none).toHaveBeenCalledTimes(1);
+            const [sql, params] = asMock(db.none).mock.calls[0];
+            expect(sql).toContain("INSERT INTO zachtothegym.daily_metrics");
+            expect(norm(sql)).toContain("( date, weight, bmi, body_fat");
+            expect(sql).toContain("VALUES (");
+            for (let i = 1; i <= 26; i++) {
+                expect(sql).toContain(`$${i}`);
+            }
+            expect(sql).toContain("ON CONFLICT (date) DO UPDATE");
+            expect(sql).toContain("weight = EXCLUDED.weight");
+            expect(sql).toContain("carbs_grams = EXCLUDED.carbs_grams");
+            expect(params).toEqual([
+                sampleMetrics.date,
+                sampleMetrics.weight,
+                sampleMetrics.bmi,
+                sampleMetrics.body_fat,
+                sampleMetrics.fat_free_weight,
+                sampleMetrics.subcutaneous_fat,
+                sampleMetrics.visceral_fat,
+                sampleMetrics.body_water,
+                sampleMetrics.skeletal_muscle,
+                sampleMetrics.muscle_mass,
+                sampleMetrics.bone_mass,
+                sampleMetrics.protein,
+                sampleMetrics.bmr,
+                sampleMetrics.metabolic_age,
+                sampleMetrics.total_steps,
+                sampleMetrics.walking_steps,
+                sampleMetrics.running_steps,
+                sampleMetrics.exercise_minutes,
+                sampleMetrics.calories_burned_walking,
+                sampleMetrics.calories_burned_running,
+                sampleMetrics.calories_burned_exercise,
+                sampleMetrics.total_calories_burned,
+                sampleMetrics.calories_consumed,
+                sampleMetrics.protein_grams,
+                sampleMetrics.fats_grams,
+                sampleMetrics.carbs_grams,
+            ]);
         });
-        const row = await deleteMetricsByDate("2025-09-01");
-        expect(db.oneOrNone).toHaveBeenCalledWith(
-            expect.stringContaining("DELETE FROM zachtothegym.daily_metrics"),
-            ["2025-09-01"]
-        );
-        expect(row).toEqual(expect.objectContaining({ date: "2025-09-01" }));
+        it("bubbles db errors", async () => {
+            asMock(db.none).mockRejectedValue(new Error("upsert-fail"));
+            await expect(saveDailyMetrics(sampleMetrics)).rejects.toThrow(
+                "upsert-fail"
+            );
+        });
     });
 
-    // Should return null when trying to delete metrics for a non-existent date
-    it("deleteMetricsByDate -> returns null if not found", async () => {
-        asMock(db.oneOrNone).mockResolvedValue(null);
-        const row = await deleteMetricsByDate("2099-01-01");
-        expect(row).toBeNull();
+    describe("getMetricsInRange", () => {
+        it("queries date-range and returns rows", async () => {
+            asMock(db.any).mockResolvedValue([
+                { date: "2025-08-31" },
+                { date: "2025-09-01" },
+            ]);
+            const rows = await getMetricsInRange("2025-08-01", "2025-09-01");
+            expect(db.any).toHaveBeenCalledTimes(1);
+            const [sql, params] = asMock(db.any).mock.calls[0];
+            expect(norm(sql)).toContain(
+                "SELECT * FROM zachtothegym.daily_metrics"
+            );
+            expect(norm(sql)).toContain(
+                "WHERE date >= $1::date AND date <= $2::date"
+            );
+            expect(norm(sql)).toContain("ORDER BY date ASC");
+            expect(params).toEqual(["2025-08-01", "2025-09-01"]);
+            expect(rows).toEqual([
+                { date: "2025-08-31" },
+                { date: "2025-09-01" },
+            ]);
+        });
+        it("bubbles db errors", async () => {
+            asMock(db.any).mockRejectedValue(new Error("range-fail"));
+            await expect(
+                getMetricsInRange("2025-01-01", "2025-01-31")
+            ).rejects.toThrow("range-fail");
+        });
     });
 
-    // Should propagate errors thrown by db.oneOrNone
-    it("deleteMetricsByDate -> propagates db errors", async () => {
-        asMock(db.oneOrNone).mockRejectedValue(new Error("fail-delete-date"));
-        await expect(deleteMetricsByDate("2025-09-01")).rejects.toThrow(
-            "fail-delete-date"
-        );
+    describe("deleteMetricsByDate", () => {
+        it("deletes and returns the row if found", async () => {
+            asMock(db.oneOrNone).mockResolvedValue({
+                date: "2025-09-01",
+                weight: 180,
+            });
+            const row = await deleteMetricsByDate("2025-09-01");
+            expect(db.oneOrNone).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    "DELETE FROM zachtothegym.daily_metrics"
+                ),
+                ["2025-09-01"]
+            );
+            expect(row).toEqual(
+                expect.objectContaining({ date: "2025-09-01" })
+            );
+        });
+        it("returns null if not found", async () => {
+            asMock(db.oneOrNone).mockResolvedValue(null);
+            const row = await deleteMetricsByDate("2099-01-01");
+            expect(row).toBeNull();
+        });
+        it("propagates db errors", async () => {
+            asMock(db.oneOrNone).mockRejectedValue(
+                new Error("fail-delete-date")
+            );
+            await expect(deleteMetricsByDate("2025-09-01")).rejects.toThrow(
+                "fail-delete-date"
+            );
+        });
     });
 
-    // Should delete metrics in a date range and return the number of rows deleted
-    it("deleteMetricsInRange -> returns rowCount from db.result", async () => {
-        asMock(db.result).mockResolvedValue({ rowCount: 3 });
-        const count = await deleteMetricsInRange("2025-09-01", "2025-09-03");
-        expect(db.result).toHaveBeenCalledWith(
-            expect.stringContaining("DELETE FROM zachtothegym.daily_metrics"),
-            ["2025-09-01", "2025-09-03"]
-        );
-        expect(count).toBe(3);
-    });
-
-    // Should propagate errors thrown by db.result
-    it("deleteMetricsInRange -> propagates db errors", async () => {
-        asMock(db.result).mockRejectedValue(new Error("fail-delete-range"));
-        await expect(
-            deleteMetricsInRange("2025-09-01", "2025-09-03")
-        ).rejects.toThrow("fail-delete-range");
+    describe("deleteMetricsInRange", () => {
+        it("returns rowCount from db.result", async () => {
+            asMock(db.result).mockResolvedValue({ rowCount: 3 });
+            const count = await deleteMetricsInRange(
+                "2025-09-01",
+                "2025-09-03"
+            );
+            expect(db.result).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    "DELETE FROM zachtothegym.daily_metrics"
+                ),
+                ["2025-09-01", "2025-09-03"]
+            );
+            expect(count).toBe(3);
+        });
+        it("propagates db errors", async () => {
+            asMock(db.result).mockRejectedValue(new Error("fail-delete-range"));
+            await expect(
+                deleteMetricsInRange("2025-09-01", "2025-09-03")
+            ).rejects.toThrow("fail-delete-range");
+        });
     });
 });

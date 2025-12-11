@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 // Global mock for express-validator's validationResult
 vi.mock("express-validator", async () => {
-    const actual = await vi.importActual<typeof import("express-validator")>(
-        "express-validator"
-    );
+    const actual =
+        await vi.importActual<typeof import("express-validator")>(
+            "express-validator"
+        );
     return {
         ...actual,
         validationResult: vi.fn(),
@@ -11,10 +12,7 @@ vi.mock("express-validator", async () => {
 });
 import { validationResult } from "express-validator";
 import { Request, Response } from "express";
-import * as BlogsSvc from "../../../src/services/blogsService";
-import * as ArticlesSvc from "../../../src/services/articlesService";
-import * as MetricsSvc from "../../../src/services/metricsService";
-import * as Controller from "../../../src/controllers/zachtothegymController";
+import { createZachtothegymController } from "../../../src/controllers/zachtothegymController";
 import { ZACHTOTHEGYM_ERRORS } from "../../../src/config/zachtothegymErrors";
 
 function mockRes() {
@@ -25,6 +23,17 @@ function mockRes() {
 }
 
 describe("zachtothegymController unit", () => {
+    let controller: ReturnType<typeof createZachtothegymController>;
+    let services: {
+        getAllBlogs: ReturnType<typeof vi.fn>;
+        getBlogById: ReturnType<typeof vi.fn>;
+        createBlog: ReturnType<typeof vi.fn>;
+        getAllArticles: ReturnType<typeof vi.fn>;
+        getArticleById: ReturnType<typeof vi.fn>;
+        createArticle: ReturnType<typeof vi.fn>;
+        saveDailyMetrics: ReturnType<typeof vi.fn>;
+        getMetricsInRange: ReturnType<typeof vi.fn>;
+    };
     beforeEach(() => {
         vi.restoreAllMocks();
         // By default, validationResult returns isEmpty true (no validation errors)
@@ -34,13 +43,25 @@ describe("zachtothegymController unit", () => {
             isEmpty: () => true,
             array: () => [],
         }));
+
+        services = {
+            getAllBlogs: vi.fn(),
+            getBlogById: vi.fn(),
+            createBlog: vi.fn(),
+            getAllArticles: vi.fn(),
+            getArticleById: vi.fn(),
+            createArticle: vi.fn(),
+            saveDailyMetrics: vi.fn(),
+            getMetricsInRange: vi.fn(),
+        };
+        controller = createZachtothegymController(services);
     });
 
     describe("getBlogs", () => {
         it("returns 200 and blogs on success", async () => {
             const req = {} as Request;
             const res = mockRes();
-            vi.spyOn(BlogsSvc, "getAllBlogs").mockResolvedValue([
+            services.getAllBlogs.mockResolvedValue([
                 {
                     id: 1,
                     title: "Test Blog",
@@ -50,7 +71,7 @@ describe("zachtothegymController unit", () => {
                     updated_at: new Date(),
                 },
             ]);
-            await Controller.getBlogs(req, res);
+            await controller.getBlogs(req, res);
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith([
                 expect.objectContaining({ id: 1, title: "Test Blog" }),
@@ -59,10 +80,8 @@ describe("zachtothegymController unit", () => {
         it("returns 500 on error", async () => {
             const req = {} as Request;
             const res = mockRes();
-            vi.spyOn(BlogsSvc, "getAllBlogs").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.getBlogs(req, res);
+            services.getAllBlogs.mockRejectedValue(new Error("fail"));
+            await controller.getBlogs(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
             expect(res.json).toHaveBeenCalledWith({
                 error: ZACHTOTHEGYM_ERRORS.FAILED_FETCH_BLOGS,
@@ -80,7 +99,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.getSingleBlogById(req, res);
+            await controller.getSingleBlogById(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({
                 errors: ["Invalid"],
@@ -94,8 +113,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(BlogsSvc, "getBlogById").mockResolvedValue(null);
-            await Controller.getSingleBlogById(req, res);
+            services.getBlogById.mockResolvedValue(null);
+            await controller.getSingleBlogById(req, res);
             expect(res.status).toHaveBeenCalledWith(404);
         });
         it("returns 200 and blog if found", async () => {
@@ -114,8 +133,8 @@ describe("zachtothegymController unit", () => {
                 created_at: new Date(),
                 updated_at: new Date(),
             };
-            vi.spyOn(BlogsSvc, "getBlogById").mockResolvedValue(blog);
-            await Controller.getSingleBlogById(req, res);
+            services.getBlogById.mockResolvedValue(blog);
+            await controller.getSingleBlogById(req, res);
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({ id: 3, title: "Blog" })
@@ -129,10 +148,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(BlogsSvc, "getBlogById").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.getSingleBlogById(req, res);
+            services.getBlogById.mockRejectedValue(new Error("fail"));
+            await controller.getSingleBlogById(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
@@ -147,7 +164,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.createNewBlog(req, res);
+            await controller.createNewBlog(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
             // Some blocks check for errors array, some don't; keep the more complete assertion
             expect(res.json).toHaveBeenCalledWith(
@@ -172,8 +189,8 @@ describe("zachtothegymController unit", () => {
                 created_at: new Date(),
                 updated_at: new Date(),
             };
-            vi.spyOn(BlogsSvc, "createBlog").mockResolvedValue(blog);
-            await Controller.createNewBlog(req, res);
+            services.createBlog.mockResolvedValue(blog);
+            await controller.createNewBlog(req, res);
             expect(res.status).toHaveBeenCalledWith(201);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({ id: 1, title: "T" })
@@ -189,10 +206,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(BlogsSvc, "createBlog").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.createNewBlog(req, res);
+            services.createBlog.mockRejectedValue(new Error("fail"));
+            await controller.createNewBlog(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
@@ -201,7 +216,7 @@ describe("zachtothegymController unit", () => {
         it("returns 200 and articles on success", async () => {
             const req = {} as Request;
             const res = mockRes();
-            vi.spyOn(ArticlesSvc, "getAllArticles").mockResolvedValue([
+            services.getAllArticles.mockResolvedValue([
                 {
                     id: 1,
                     title: "A",
@@ -212,7 +227,7 @@ describe("zachtothegymController unit", () => {
                     updated_at: new Date(),
                 },
             ]);
-            await Controller.getArticles(req, res);
+            await controller.getArticles(req, res);
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith([
                 expect.objectContaining({ id: 1, title: "A" }),
@@ -221,10 +236,8 @@ describe("zachtothegymController unit", () => {
         it("returns 500 on error", async () => {
             const req = {} as Request;
             const res = mockRes();
-            vi.spyOn(ArticlesSvc, "getAllArticles").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.getArticles(req, res);
+            services.getAllArticles.mockRejectedValue(new Error("fail"));
+            await controller.getArticles(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
@@ -239,7 +252,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.getSingleArticleById(req, res);
+            await controller.getSingleArticleById(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
         });
     });
@@ -254,7 +267,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.createNewArticle(req, res);
+            await controller.createNewArticle(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
         });
         it("returns 201 and new article on success", async () => {
@@ -271,6 +284,7 @@ describe("zachtothegymController unit", () => {
                 validationResult as unknown as ReturnType<typeof vi.fn>
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
+                array: () => [],
             }));
             const article = {
                 id: 1,
@@ -281,8 +295,8 @@ describe("zachtothegymController unit", () => {
                 created_at: new Date(),
                 updated_at: new Date(),
             };
-            vi.spyOn(ArticlesSvc, "createArticle").mockResolvedValue(article);
-            await Controller.createNewArticle(req, res);
+            services.createArticle.mockResolvedValue(article);
+            await controller.createNewArticle(req, res);
             expect(res.status).toHaveBeenCalledWith(201);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({ id: 1, title: "T" })
@@ -302,11 +316,10 @@ describe("zachtothegymController unit", () => {
                 validationResult as unknown as ReturnType<typeof vi.fn>
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
+                array: () => [],
             }));
-            vi.spyOn(ArticlesSvc, "createArticle").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.createNewArticle(req, res);
+            services.createArticle.mockRejectedValue(new Error("fail"));
+            await controller.createNewArticle(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
@@ -321,7 +334,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.addDailyMetrics(req, res);
+            await controller.addDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
         });
         it("returns 200 on success", async () => {
@@ -332,10 +345,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(MetricsSvc, "saveDailyMetrics").mockResolvedValue(
-                undefined
-            );
-            await Controller.addDailyMetrics(req, res);
+            services.saveDailyMetrics.mockResolvedValue(undefined);
+            await controller.addDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 message: expect.any(String),
@@ -349,10 +360,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(MetricsSvc, "saveDailyMetrics").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.addDailyMetrics(req, res);
+            services.saveDailyMetrics.mockRejectedValue(new Error("fail"));
+            await controller.addDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });
@@ -367,7 +376,7 @@ describe("zachtothegymController unit", () => {
                 isEmpty: () => false,
                 array: () => [{ msg: "Invalid" }],
             }));
-            await Controller.getDailyMetrics(req, res);
+            await controller.getDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(400);
         });
         it("returns 200 and metrics on success", async () => {
@@ -380,10 +389,10 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(MetricsSvc, "getMetricsInRange").mockResolvedValue([
+            services.getMetricsInRange.mockResolvedValue([
                 { date: "2023-01-01", weight: 180, bmi: 25 },
             ]);
-            await Controller.getDailyMetrics(req, res);
+            await controller.getDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith([
                 { date: "2023-01-01", weight: 180, bmi: 25 },
@@ -399,10 +408,8 @@ describe("zachtothegymController unit", () => {
             ).mockImplementationOnce(() => ({
                 isEmpty: () => true,
             }));
-            vi.spyOn(MetricsSvc, "getMetricsInRange").mockRejectedValue(
-                new Error("fail")
-            );
-            await Controller.getDailyMetrics(req, res);
+            services.getMetricsInRange.mockRejectedValue(new Error("fail"));
+            await controller.getDailyMetrics(req, res);
             expect(res.status).toHaveBeenCalledWith(500);
         });
     });

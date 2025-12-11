@@ -1,48 +1,62 @@
-import { Router } from "express";
-import { login, register } from "../controllers/authenticationController";
+import { Router, type Response, type NextFunction } from "express";
+import type { AuthenticationControllerHandlers } from "../controllers/authenticationController";
 import {
     validateLogin,
     validateRegister,
 } from "../validators/authenticationValidators";
-import { verifyToken } from "../middleware/authenticationMiddleware";
+import type { AuthRequest } from "../middleware/authenticationMiddleware";
+
+/**
+ * Authentication middleware handlers used by protected routes.
+ */
+export type AuthMiddlewareHandlers = {
+    /** Verifies a Bearer token and attaches `user` to the request. */
+    verifyToken: (req: AuthRequest, res: Response, next: NextFunction) => void;
+};
+
+/**
+ * Creates the authentication router.
+ *
+ * @param {AuthenticationControllerHandlers} controller - Controller with `login` and `register` handlers.
+ * @param {AuthMiddlewareHandlers} mw - Authentication middleware, uses `verifyToken` for protected routes.
+ * @returns {import('express').Router} Express router with `/login`, `/register`, and `/profile` routes.
+ * @remarks Attaches validation middleware for login/register; `/profile` requires a valid Bearer token.
+ */
+export const createAuthenticationRouter = (
+    controller: AuthenticationControllerHandlers,
+    mw: AuthMiddlewareHandlers
+) => {
+    const router = Router();
+
+    /**
+     * Handles user login.
+     * @see POST /login
+     */
+    router.post("/login", validateLogin, controller.login);
+
+    /**
+     * Handles user registration.
+     * @see POST /register
+     */
+    router.post("/register", validateRegister, controller.register);
+
+    /**
+     * Returns the authenticated user's profile.
+     * @see GET /profile
+     */
+    router.get("/profile", mw.verifyToken, (req, res) => {
+        res.status(200).json({
+            message: "Protected route accessed",
+            user: req.user,
+        });
+    });
+
+    return router;
+};
 
 /**
  * Authentication routes for user login, registration, and profile access.
  *
  * @module routes/authenticationRoutes
  */
-const router = Router();
-
-/**
- * Logs in a user.
- *
- * @route POST /login
- * @returns {Promise<void>} Sends response via res object.
- * @note On success, responds with 200 and a JWT token and user info. On error, responds with 400 (validation), 401 (invalid credentials), or 500 (server error).
- */
-router.post("/login", validateLogin, login);
-
-/**
- * Registers a new user.
- *
- * @route POST /register
- * @returns {Promise<void>} Sends response via res object.
- * @note On success, responds with 201 and the new user. On error, responds with 400 (validation or duplicate), or 500 (server error).
- */
-router.post("/register", validateRegister, register);
-
-/**
- * Gets the authenticated user's profile. Protected route.
- *
- * @route GET /profile
- * @returns {Promise<void>} Sends response via res object.
- * @note Requires a valid JWT. On success, responds with 200 and the user info. On error, responds with 401 (missing/invalid token).
- */
-router.get("/profile", verifyToken, (req, res) => {
-    res.status(200).json({
-        message: "Protected route accessed",
-        user: req.user,
-    });
-});
-
-export default router;
+export default createAuthenticationRouter;
